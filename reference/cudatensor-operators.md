@@ -4,6 +4,8 @@
 Operands follow trailing-dimension broadcasting. Mixed dtypes are
 promoted without silently truncating fractional values; integer
 arithmetic is promoted to `float64` to avoid R integer overflow.
+Compatible dimension labels are retained. When both operands label the
+same non-broadcast dimension, their labels must be identical.
 
 ## Usage
 

@@ -18,6 +18,11 @@ tensor_matmul(x, y)
 
 A `cudatensor`.
 
+## Details
+
+Row names come from `x` and column names come from `y`. When both
+operands name the contracted dimension, those names must be identical.
+
 ## Examples
 
 ``` r

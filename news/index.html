@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cudatensr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -33,6 +33,10 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.2" id="cudatensr-012">cudatensr 0.1.2<a class="anchor" aria-label="anchor" href="#cudatensr-012"></a></h2>
+<ul><li>Matrix and array dimnames are now retained as backend-independent metadata through construction, CPU/CUDA transfer, compatible arithmetic and broadcasting, reductions, transpose, and matrix multiplication. Conflicting labels on paired dimensions fail clearly instead of producing a mislabeled result.</li>
+</ul></div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.1" id="cudatensr-011">cudatensr 0.1.1<a class="anchor" aria-label="anchor" href="#cudatensr-011"></a></h2>
 <ul><li>Added standard R subsetting and replacement methods, <code><a href="../reference/tensor_reshape.html">tensor_reshape()</a></code>, <code><a href="https://rdrr.io/r/base/t.html" class="external-link">t()</a></code>, and <code><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix()</a></code> so tensors can be manipulated without reaching into their internal storage.</li>
 <li>Printing a large tensor now reports its metadata without implicitly materializing the entire object on the CPU. The display threshold is controlled by <code>options(cudatensr.max_print = 100)</code>.</li>
@@ -40,7 +44,8 @@
 <li>Added explicit mixed-dtype promotion. Integer arithmetic, reductions, and matrix products now promote safely instead of truncating fractions or silently overflowing to <code>NA</code>.</li>
 <li>Lossy explicit conversion to integer dtype now fails clearly.</li>
 </ul></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

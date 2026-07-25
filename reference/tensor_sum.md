@@ -28,6 +28,14 @@ tensor_mean(x, dim = NULL, keepdim = FALSE)
 
 A `cudatensor`.
 
+## Details
+
+Labels on dimensions that are not reduced are retained. A reduced
+dimension kept with size one retains its axis name but not its
+individual labels. Supplying `integer(0)` performs no reduction and
+returns the tensor values, shape, device, and dimnames unchanged (with
+the documented reduction dtype promotion).
+
 ## Examples
 
 ``` r

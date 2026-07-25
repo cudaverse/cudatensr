@@ -15,6 +15,9 @@ around R objects and R package conventions.
 - NumPy-style trailing-dimension broadcasting.
 - Standard R subsetting and replacement, reshape, transpose, and matrix
   conversion.
+- Preservation of matrix and array dimension labels across CPU/CUDA
+  transfer, arithmetic, compatible broadcasting, reductions, transpose,
+  and matrix multiplication.
 - Portable base R backend for development and CI.
 - Optional CUDA execution through a CUDA-enabled `torch` installation.
 
@@ -44,6 +47,28 @@ reshaped <- tensor_reshape(cuda_tensor(1:12), c(3, 4))
 reshaped[1:2, 2:4, drop = FALSE]
 t(reshaped)
 ```
+
+Named R matrices keep their identifiers:
+
+``` r
+
+named_matrix <- matrix(
+  1:6,
+  nrow = 2,
+  dimnames = list(
+    sample = c("sample_a", "sample_b"),
+    feature = c("gene_a", "gene_b", "gene_c")
+  )
+)
+
+tensor <- cuda_tensor(named_matrix)
+dimnames(to_cpu(tensor))
+```
+
+Element-wise operations require labels on corresponding non-broadcast
+dimensions to agree. Matrix multiplication similarly checks labels on
+the contracted dimensions, then carries row labels from the left operand
+and column labels from the right operand into the result.
 
 Subsetting always returns a `cudatensor`, including a single selected
 value. Replacement preserves the original dtype, so assigning a

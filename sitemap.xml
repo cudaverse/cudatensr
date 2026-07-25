@@ -8,6 +8,7 @@
 <url><loc>https://cudaverse.github.io/cudatensr/reference/cuda_tensor.html</loc></url>
 <url><loc>https://cudaverse.github.io/cudatensr/reference/cudatensor-operators.html</loc></url>
 <url><loc>https://cudaverse.github.io/cudatensr/reference/cudatensor-subset.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/dimnames.cudatensor.html</loc></url>
 <url><loc>https://cudaverse.github.io/cudatensr/reference/index.html</loc></url>
 <url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_broadcast_to.html</loc></url>
 <url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_device.html</loc></url>

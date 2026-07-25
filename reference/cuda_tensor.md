@@ -24,6 +24,9 @@ cuda_tensor(x, device = c("auto", "cuda", "cpu"), dtype = NULL)
 
   One of `"float64"`, `"float32"`, or `"integer"`.
 
+  Matrix and array dimnames, including names on a one-dimensional input,
+  are retained as R metadata on both CPU and CUDA tensors.
+
 ## Value
 
 A `cudatensor` object.

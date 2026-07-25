@@ -23,6 +23,12 @@ tensor_broadcast_to(x, shape)
 
 A `cudatensor`.
 
+## Details
+
+Labels are retained on dimensions whose sizes do not change. Labels are
+dropped from singleton dimensions that are expanded because a single
+input label cannot identify multiple output positions.
+
 ## Examples
 
 ``` r

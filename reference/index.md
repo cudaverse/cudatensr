@@ -8,6 +8,8 @@
   : Detect a usable CUDA backend
 - [`tensor_shape()`](https://cudaverse.github.io/cudatensr/reference/tensor_shape.md)
   : Inspect tensor shape
+- [`dimnames(`*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/dimnames.cudatensor.md)
+  : Inspect tensor dimension labels
 - [`tensor_device()`](https://cudaverse.github.io/cudatensr/reference/tensor_device.md)
   : Inspect tensor device and backend
 - [`to_cpu()`](https://cudaverse.github.io/cudatensr/reference/to_cpu.md)

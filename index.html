@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">cudatensr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -62,6 +62,7 @@
 <li>Sum and mean reductions over one-based R dimensions.</li>
 <li>NumPy-style trailing-dimension broadcasting.</li>
 <li>Standard R subsetting and replacement, reshape, transpose, and matrix conversion.</li>
+<li>Preservation of matrix and array dimension labels across CPU/CUDA transfer, arithmetic, compatible broadcasting, reductions, transpose, and matrix multiplication.</li>
 <li>Portable base R backend for development and CI.</li>
 <li>Optional CUDA execution through a CUDA-enabled <code>torch</code> installation.</li>
 </ul>
@@ -90,9 +91,23 @@
 <span><span class="va">reshaped</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/tensor_reshape.html">tensor_reshape</a></span><span class="op">(</span><span class="fu"><a href="reference/cuda_tensor.html">cuda_tensor</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">12</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">reshaped</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">:</span><span class="fl">4</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">reshaped</span><span class="op">)</span></span></code></pre></div>
+<p>Named R matrices keep their identifiers:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">named_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>  <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
+<span>  nrow <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    sample <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sample_a"</span>, <span class="st">"sample_b"</span><span class="op">)</span>,</span>
+<span>    feature <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gene_a"</span>, <span class="st">"gene_b"</span>, <span class="st">"gene_c"</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">tensor</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cuda_tensor.html">cuda_tensor</a></span><span class="op">(</span><span class="va">named_matrix</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dimnames.html" class="external-link">dimnames</a></span><span class="op">(</span><span class="fu"><a href="reference/to_cpu.html">to_cpu</a></span><span class="op">(</span><span class="va">tensor</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Element-wise operations require labels on corresponding non-broadcast dimensions to agree. Matrix multiplication similarly checks labels on the contracted dimensions, then carries row labels from the left operand and column labels from the right operand into the result.</p>
 <p>Subsetting always returns a <code>cudatensor</code>, including a single selected value. Replacement preserves the original dtype, so assigning a fractional value to an integer tensor fails instead of silently truncating it. In the current release, subsetting a CUDA tensor uses a CPU round trip; matrix arithmetic, broadcasting, reductions, reshape, and transpose remain device-native.</p>
 <p>Use <code>device = "cuda"</code> to require GPU execution:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="reference/cuda_available.html">cuda_available</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">x_gpu</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cuda_tensor.html">cuda_tensor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">1e6</span><span class="op">)</span>, <span class="fl">1000</span><span class="op">)</span>, device <span class="op">=</span> <span class="st">"cuda"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>

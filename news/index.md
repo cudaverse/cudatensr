@@ -1,5 +1,13 @@
 # Changelog
 
+## cudatensr 0.1.2
+
+- Matrix and array dimnames are now retained as backend-independent
+  metadata through construction, CPU/CUDA transfer, compatible
+  arithmetic and broadcasting, reductions, transpose, and matrix
+  multiplication. Conflicting labels on paired dimensions fail clearly
+  instead of producing a mislabeled result.
+
 ## cudatensr 0.1.1
 
 - Added standard R subsetting and replacement methods,
