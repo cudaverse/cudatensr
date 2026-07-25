@@ -9,6 +9,7 @@ reference:
   - cuda_tensor
   - cuda_available
   - tensor_shape
+  - dimnames.cudatensor
   - tensor_device
   - to_cpu
   - to_device

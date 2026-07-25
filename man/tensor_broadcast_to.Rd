@@ -18,6 +18,11 @@ A \code{cudatensor}.
 \description{
 Broadcast a tensor to a compatible shape
 }
+\details{
+Labels are retained on dimensions whose sizes do not change.
+Labels are dropped from singleton dimensions that are expanded because a
+single input label cannot identify multiple output positions.
+}
 \examples{
 x <- cuda_tensor(1:3, device = "cpu")
 tensor_broadcast_to(x, c(2, 3))

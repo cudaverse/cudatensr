@@ -26,6 +26,8 @@ the tensor operand on the right when the left operand is a base object).
 Operands follow trailing-dimension broadcasting. Mixed dtypes are promoted
 without silently truncating fractional values; integer arithmetic is
 promoted to \code{float64} to avoid R integer overflow.
+Compatible dimension labels are retained. When both operands label the same
+non-broadcast dimension, their labels must be identical.
 }
 \details{
 Use \code{\%*\%} for matrix multiplication.

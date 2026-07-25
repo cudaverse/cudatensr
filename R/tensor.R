@@ -18,6 +18,195 @@ cuda_available <- function() {
   if (is.integer(x)) "integer" else "float64"
 }
 
+.validate_tensor_dimnames <- function(value, shape, argument = "dimnames") {
+  if (is.null(value)) {
+    return(NULL)
+  }
+  if (!is.list(value) || length(value) != length(shape)) {
+    stop(
+      sprintf(
+        "`%s` must be NULL or a list with one entry per tensor dimension.",
+        argument
+      ),
+      call. = FALSE
+    )
+  }
+
+  result <- vector("list", length(shape))
+  for (index in seq_along(shape)) {
+    labels <- value[[index]]
+    if (is.null(labels)) {
+      next
+    }
+    if (!is.character(labels) || !is.null(dim(labels)) ||
+        length(labels) != shape[[index]]) {
+      stop(
+        sprintf(
+          "Each non-NULL `%s` entry must be a character vector matching its tensor dimension.",
+          argument
+        ),
+        call. = FALSE
+      )
+    }
+    result[[index]] <- labels
+  }
+  if (!is.null(names(value))) {
+    names(result) <- names(value)
+  }
+  result
+}
+
+.tensor_dimnames <- function(x) {
+  .validate_tensor_dimnames(x$dimnames, x$shape)
+}
+
+.new_tensor_dimnames <- function(labels, axis_names = NULL) {
+  if (!is.null(axis_names)) {
+    names(labels) <- axis_names
+  }
+  if (all(vapply(labels, is.null, logical(1))) &&
+      is.null(axis_names)) {
+    return(NULL)
+  }
+  labels
+}
+
+.tensor_axis_name <- function(value, index) {
+  if (is.null(value) || is.null(names(value))) {
+    return(NULL)
+  }
+  names(value)[[index]]
+}
+
+.meaningful_axis_name <- function(value) {
+  !is.null(value) && (is.na(value) || nzchar(value))
+}
+
+.aligned_tensor_dimnames <- function(x, shape) {
+  source <- .tensor_dimnames(x)
+  if (is.null(source)) {
+    return(NULL)
+  }
+
+  offset <- length(shape) - length(x$shape)
+  labels <- vector("list", length(shape))
+  source_axis_names <- names(source)
+  axis_names <- if (is.null(source_axis_names)) {
+    NULL
+  } else {
+    rep("", length(shape))
+  }
+  for (index in seq_along(x$shape)) {
+    target <- offset + index
+    if (x$shape[[index]] == shape[[target]]) {
+      labels[target] <- list(source[[index]])
+    }
+    if (!is.null(axis_names)) {
+      axis_names[[target]] <- source_axis_names[[index]]
+    }
+  }
+  .new_tensor_dimnames(labels, axis_names)
+}
+
+.merge_tensor_dimnames <- function(x, y, context = "arithmetic") {
+  x_names <- .tensor_dimnames(x)
+  y_names <- .tensor_dimnames(y)
+  if (is.null(x_names) && is.null(y_names)) {
+    return(NULL)
+  }
+
+  labels <- vector("list", length(x$shape))
+  axis_names <- rep("", length(x$shape))
+  has_axis_names <- FALSE
+  for (index in seq_along(labels)) {
+    x_labels <- if (is.null(x_names)) NULL else x_names[[index]]
+    y_labels <- if (is.null(y_names)) NULL else y_names[[index]]
+    if (!is.null(x_labels) && !is.null(y_labels) &&
+        !identical(x_labels, y_labels)) {
+      stop(
+        sprintf(
+          "Tensor dimension names are incompatible for %s on dimension %s.",
+          context, index
+        ),
+        call. = FALSE
+      )
+    }
+    labels[index] <- list(
+      if (!is.null(x_labels)) x_labels else y_labels
+    )
+
+    x_axis <- .tensor_axis_name(x_names, index)
+    y_axis <- .tensor_axis_name(y_names, index)
+    selected_axis <- if (.meaningful_axis_name(x_axis)) x_axis else y_axis
+    if (.meaningful_axis_name(selected_axis)) {
+      axis_names[[index]] <- selected_axis
+      has_axis_names <- TRUE
+    }
+  }
+  .new_tensor_dimnames(
+    labels,
+    if (has_axis_names) axis_names else NULL
+  )
+}
+
+.matmul_tensor_dimnames <- function(x, y) {
+  x_names <- .tensor_dimnames(x)
+  y_names <- .tensor_dimnames(y)
+  x_inner <- if (is.null(x_names)) NULL else x_names[[2L]]
+  y_inner <- if (is.null(y_names)) NULL else y_names[[1L]]
+  if (!is.null(x_inner) && !is.null(y_inner) &&
+      !identical(x_inner, y_inner)) {
+    stop(
+      "Tensor inner dimension names are incompatible for matrix multiplication.",
+      call. = FALSE
+    )
+  }
+
+  labels <- list(
+    if (is.null(x_names)) NULL else x_names[[1L]],
+    if (is.null(y_names)) NULL else y_names[[2L]]
+  )
+  x_axis <- .tensor_axis_name(x_names, 1L)
+  y_axis <- .tensor_axis_name(y_names, 2L)
+  has_axis_names <- .meaningful_axis_name(x_axis) ||
+    .meaningful_axis_name(y_axis)
+  axis_names <- if (has_axis_names) {
+    c(
+      if (.meaningful_axis_name(x_axis)) x_axis else "",
+      if (.meaningful_axis_name(y_axis)) y_axis else ""
+    )
+  } else {
+    NULL
+  }
+  .new_tensor_dimnames(labels, axis_names)
+}
+
+.reduced_tensor_dimnames <- function(x, dim, keepdim) {
+  source <- .tensor_dimnames(x)
+  if (is.null(source)) {
+    return(NULL)
+  }
+  all_dimensions <- seq_along(x$shape)
+  reduced <- if (is.null(dim)) all_dimensions else dim
+  if (!length(reduced)) {
+    return(source)
+  }
+  if (!isTRUE(keepdim)) {
+    retained <- setdiff(all_dimensions, reduced)
+    if (!length(retained)) {
+      return(NULL)
+    }
+    result <- source[retained]
+    return(.new_tensor_dimnames(result, names(result)))
+  }
+
+  result <- source
+  for (index in reduced) {
+    result[index] <- list(NULL)
+  }
+  .new_tensor_dimnames(result, names(source))
+}
+
 .validate_integer_values <- function(x, argument = "x") {
   values <- as.numeric(x)
   representable <- values == trunc(values) &
@@ -35,14 +224,17 @@ cuda_available <- function() {
   invisible(x)
 }
 
-.new_cudatensor <- function(storage, device, backend, dtype, shape) {
+.new_cudatensor <- function(storage, device, backend, dtype, shape,
+                            dimnames = NULL) {
+  shape <- as.integer(shape)
   structure(
     list(
       storage = storage,
       device = device,
       backend = backend,
       dtype = dtype,
-      shape = as.integer(shape)
+      shape = shape,
+      dimnames = .validate_tensor_dimnames(dimnames, shape)
     ),
     class = "cudatensor"
   )
@@ -79,7 +271,8 @@ cuda_available <- function() {
   if (identical(x$backend, "torch")) {
     storage <- x$storage$to(dtype = .torch_dtype(dtype))
     return(.new_cudatensor(
-      storage, x$device, x$backend, dtype, x$shape
+      storage, x$device, x$backend, dtype, x$shape,
+      dimnames = .tensor_dimnames(x)
     ))
   }
   cuda_tensor(to_cpu(x), device = "cpu", dtype = dtype)
@@ -92,6 +285,9 @@ cuda_available <- function() {
 #'   only when [cuda_available()] is true.
 #' @param dtype One of `"float64"`, `"float32"`, or `"integer"`.
 #'
+#' Matrix and array dimnames, including names on a one-dimensional input, are
+#' retained as R metadata on both CPU and CUDA tensors.
+#'
 #' @return A `cudatensor` object.
 #' @export
 #' @examples
@@ -101,6 +297,7 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
                         dtype = NULL) {
   device <- match.arg(device)
   if (inherits(x, "cudatensor")) {
+    .tensor_dimnames(x)
     if (is.null(dtype)) {
       dtype <- x$dtype
     }
@@ -118,7 +315,11 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
     stop("`x` must contain finite numeric values.", call. = FALSE)
   }
   if (is.null(dim(x))) {
+    value_names <- names(x)
     dim(x) <- length(x)
+    if (!is.null(value_names)) {
+      dimnames(x) <- list(value_names)
+    }
   }
   if (is.null(dtype)) {
     dtype <- .tensor_dtype(x)
@@ -139,22 +340,29 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
   }
 
   shape <- dim(x)
+  tensor_dimnames <- .validate_tensor_dimnames(dimnames(x), shape)
   if (device == "cuda") {
     storage <- torch::torch_tensor(
       x,
       dtype = .torch_dtype(dtype),
       device = "cuda"
     )
-    return(.new_cudatensor(storage, "cuda", "torch", dtype, shape))
+    return(.new_cudatensor(
+      storage, "cuda", "torch", dtype, shape,
+      dimnames = tensor_dimnames
+    ))
   }
 
   storage <- switch(
     dtype,
-    integer = array(as.integer(x), dim = shape),
-    float32 = array(as.numeric(x), dim = shape),
-    float64 = array(as.numeric(x), dim = shape)
+    integer = array(as.integer(x), dim = shape, dimnames = tensor_dimnames),
+    float32 = array(as.numeric(x), dim = shape, dimnames = tensor_dimnames),
+    float64 = array(as.numeric(x), dim = shape, dimnames = tensor_dimnames)
   )
-  .new_cudatensor(storage, "cpu", "base", dtype, shape)
+  .new_cudatensor(
+    storage, "cpu", "base", dtype, shape,
+    dimnames = tensor_dimnames
+  )
 }
 
 #' Inspect tensor device and backend
@@ -261,12 +469,15 @@ to_cpu <- function(x) {
     result <- as.array(x$storage$to(device = "cpu"))
   }
   dim(result) <- x$shape
+  dimnames(result) <- .tensor_dimnames(x)
   result
 }
 
 #' Matrix multiplication for tensors
 #'
 #' @param x,y Two-dimensional `cudatensor` objects or numeric matrices.
+#' @details Row names come from `x` and column names come from `y`. When both
+#'   operands name the contracted dimension, those names must be identical.
 #' @return A `cudatensor`.
 #' @export
 #' @examples
@@ -302,16 +513,20 @@ tensor_matmul <- function(x, y) {
   result_dtype <- .promote_tensor_dtype(x$dtype, y$dtype, "matmul")
   x <- .cast_tensor(x, result_dtype)
   y <- .cast_tensor(y, result_dtype)
+  result_dimnames <- .matmul_tensor_dimnames(x, y)
 
   if (x$backend == "torch") {
     storage <- x$storage$matmul(y$storage)
     return(.new_cudatensor(
       storage, x$device, x$backend, result_dtype,
-      c(x$shape[[1]], y$shape[[2]])
+      c(x$shape[[1]], y$shape[[2]]),
+      dimnames = result_dimnames
     ))
   }
+  result <- to_cpu(x) %*% to_cpu(y)
+  dimnames(result) <- result_dimnames
   cuda_tensor(
-    to_cpu(x) %*% to_cpu(y),
+    result,
     device = "cpu",
     dtype = result_dtype
   )
@@ -330,7 +545,11 @@ tensor_matmul <- function(x, y) {
            call. = FALSE)
     }
     dim <- unique(as.integer(dim))
+    if (!length(dim)) {
+      return(.cast_tensor(x, result_dtype))
+    }
   }
+  result_dimnames <- .reduced_tensor_dimnames(x, dim, keepdim)
 
   if (x$backend == "torch") {
     source_storage <- if (!identical(result_dtype, x$dtype)) {
@@ -340,6 +559,9 @@ tensor_matmul <- function(x, y) {
     }
     if (is.null(dim)) {
       storage <- source_storage[[torch_method]]()
+      if (isTRUE(keepdim)) {
+        storage <- storage$reshape(rep(1L, length(x$shape)))
+      }
     } else {
       storage <- source_storage[[torch_method]](
         dim = dim - 1L,
@@ -351,7 +573,8 @@ tensor_matmul <- function(x, y) {
       shape <- 1L
     }
     return(.new_cudatensor(
-      storage, x$device, x$backend, result_dtype, shape
+      storage, x$device, x$backend, result_dtype, shape,
+      dimnames = result_dimnames
     ))
   }
 
@@ -372,6 +595,16 @@ tensor_matmul <- function(x, y) {
       reduced <- array(reduced, dim = kept_shape)
     }
   }
+  dim(reduced) <- if (is.null(dim) || length(dim) == length(x$shape)) {
+    if (isTRUE(keepdim)) rep(1L, length(x$shape)) else 1L
+  } else if (isTRUE(keepdim)) {
+    kept_shape <- x$shape
+    kept_shape[dim] <- 1L
+    kept_shape
+  } else {
+    x$shape[setdiff(seq_along(x$shape), dim)]
+  }
+  dimnames(reduced) <- result_dimnames
   cuda_tensor(reduced, device = "cpu", dtype = result_dtype)
 }
 
@@ -380,6 +613,11 @@ tensor_matmul <- function(x, y) {
 #' @param x A `cudatensor`.
 #' @param dim Optional one-based dimensions to reduce.
 #' @param keepdim Whether reduced dimensions should be retained with size one.
+#' @details Labels on dimensions that are not reduced are retained. A reduced
+#'   dimension kept with size one retains its axis name but not its individual
+#'   labels. Supplying `integer(0)` performs no reduction and returns the
+#'   tensor values, shape, device, and dimnames unchanged (with the documented
+#'   reduction dtype promotion).
 #' @return A `cudatensor`.
 #' @export
 #' @examples
@@ -403,6 +641,9 @@ tensor_mean <- function(x, dim = NULL, keepdim = FALSE) {
 #' @param x A `cudatensor`.
 #' @param shape Target dimensions. Existing dimensions are aligned from the
 #'   right and must either match or equal one.
+#' @details Labels are retained on dimensions whose sizes do not change.
+#'   Labels are dropped from singleton dimensions that are expanded because a
+#'   single input label cannot identify multiple output positions.
 #' @return A `cudatensor`.
 #' @export
 #' @examples
@@ -425,11 +666,13 @@ tensor_broadcast_to <- function(x, shape) {
     stop("Tensor shape is not compatible with the target shape.",
          call. = FALSE)
   }
+  result_dimnames <- .aligned_tensor_dimnames(x, shape)
 
   if (x$backend == "torch") {
     storage <- x$storage$reshape(padded)$expand(shape)
     return(.new_cudatensor(
-      storage, x$device, x$backend, x$dtype, shape
+      storage, x$device, x$backend, x$dtype, shape,
+      dimnames = result_dimnames
     ))
   }
 
@@ -442,6 +685,7 @@ tensor_broadcast_to <- function(x, shape) {
     sweep(source_coordinates - 1L, 2L, strides, `*`)
   )
   result <- array(as.vector(to_cpu(x))[source_index], dim = shape)
+  dimnames(result) <- result_dimnames
   cuda_tensor(result, device = "cpu", dtype = x$dtype)
 }
 
@@ -490,6 +734,7 @@ tensor_broadcast_to <- function(x, shape) {
   if (!identical(e2$shape, shape)) {
     e2 <- tensor_broadcast_to(e2, shape)
   }
+  result_dimnames <- .merge_tensor_dimnames(e1, e2)
 
   if (identical(e1$backend, "torch")) {
     storage <- switch(
@@ -501,7 +746,8 @@ tensor_broadcast_to <- function(x, shape) {
       "^" = e1$storage^e2$storage
     )
     return(.new_cudatensor(
-      storage, e1$device, e1$backend, dtype, shape
+      storage, e1$device, e1$backend, dtype, shape,
+      dimnames = result_dimnames
     ))
   }
 
@@ -513,6 +759,7 @@ tensor_broadcast_to <- function(x, shape) {
     "/" = to_cpu(e1) / to_cpu(e2),
     "^" = to_cpu(e1)^to_cpu(e2)
   )
+  dimnames(values) <- result_dimnames
   cuda_tensor(values, device = "cpu", dtype = dtype)
 }
 
@@ -522,6 +769,8 @@ tensor_broadcast_to <- function(x, shape) {
 #' Operands follow trailing-dimension broadcasting. Mixed dtypes are promoted
 #' without silently truncating fractional values; integer arithmetic is
 #' promoted to `float64` to avoid R integer overflow.
+#' Compatible dimension labels are retained. When both operands label the same
+#' non-broadcast dimension, their labels must be identical.
 #'
 #' Use `%*%` for matrix multiplication.
 #'
@@ -667,6 +916,17 @@ dim.cudatensor <- function(x) {
   x$shape
 }
 
+#' Inspect tensor dimension labels
+#'
+#' @param x A `cudatensor`.
+#' @return `NULL` for an unnamed tensor, otherwise one character vector (or
+#'   `NULL`) per tensor dimension, following base R `dimnames()` semantics.
+#' @export
+dimnames.cudatensor <- function(x) {
+  .check_tensor(x)
+  .tensor_dimnames(x)
+}
+
 #' @export
 length.cudatensor <- function(x) {
   prod(x$shape)
@@ -686,7 +946,12 @@ as.matrix.cudatensor <- function(x, rownames.force = NA, ...) {
   }
   values <- to_cpu(x)
   if (length(x$shape) == 1L) {
-    return(matrix(values, ncol = 1L))
+    result <- matrix(as.vector(values), ncol = 1L)
+    value_dimnames <- .tensor_dimnames(x)
+    if (!is.null(value_dimnames)) {
+      rownames(result) <- value_dimnames[[1L]]
+    }
+    return(result)
   }
   as.matrix(values, rownames.force = rownames.force, ...)
 }
@@ -698,16 +963,25 @@ t.cudatensor <- function(x) {
     stop("`t()` requires a two-dimensional tensor.", call. = FALSE)
   }
   shape <- rev(x$shape)
+  tensor_dimnames <- .tensor_dimnames(x)
+  result_dimnames <- if (is.null(tensor_dimnames)) {
+    NULL
+  } else {
+    rev(tensor_dimnames)
+  }
   if (identical(x$backend, "torch")) {
     return(.new_cudatensor(
       x$storage$t(),
       x$device,
       x$backend,
       x$dtype,
-      shape
+      shape,
+      dimnames = result_dimnames
     ))
   }
-  cuda_tensor(t(to_cpu(x)), device = "cpu", dtype = x$dtype)
+  result <- t(to_cpu(x))
+  dimnames(result) <- result_dimnames
+  cuda_tensor(result, device = "cpu", dtype = x$dtype)
 }
 
 #' @export

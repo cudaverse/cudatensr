@@ -7,6 +7,36 @@ test_that("CPU tensors preserve shape, dtype, and values", {
   expect_equal(to_cpu(x), matrix(as.integer(1:6), 2))
 })
 
+test_that("tensor construction and conversion preserve dimension labels", {
+  source <- matrix(
+    1:6,
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  x <- cuda_tensor(source, device = "cpu")
+
+  expect_identical(dimnames(x), dimnames(source))
+  expect_identical(dimnames(to_cpu(x)), dimnames(source))
+  expect_identical(dimnames(to_device(x, "cpu")), dimnames(source))
+  expect_identical(dimnames(as.matrix(x)), dimnames(source))
+
+  named_vector <- setNames(1:3, c("a", "b", "c"))
+  vector_tensor <- cuda_tensor(named_vector, device = "cpu")
+  expect_identical(dimnames(vector_tensor), list(c("a", "b", "c")))
+  expect_identical(rownames(as.matrix(vector_tensor)), names(named_vector))
+
+  unnamed <- cuda_tensor(unname(source), device = "cpu")
+  expect_null(dimnames(unnamed))
+  expect_null(dimnames(to_cpu(unnamed)))
+
+  broken <- x
+  broken$dimnames <- list("too_short")
+  expect_error(to_cpu(broken), "one entry per tensor dimension")
+})
+
 test_that("matrix multiplication matches base R", {
   a <- matrix(1:6, 2, 3)
   b <- matrix(1:6, 3, 2)
@@ -17,6 +47,46 @@ test_that("matrix multiplication matches base R", {
 
   expect_equal(to_cpu(result), a %*% b)
   expect_identical(tensor_shape(result), c(2L, 2L))
+})
+
+test_that("matrix multiplication preserves outer labels safely", {
+  left <- matrix(
+    1:6,
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  right <- matrix(
+    1:6,
+    nrow = 3,
+    dimnames = list(
+      feature = c("gene_a", "gene_b", "gene_c"),
+      output = c("score_a", "score_b")
+    )
+  )
+  result <- tensor_matmul(
+    cuda_tensor(left, device = "cpu"),
+    cuda_tensor(right, device = "cpu")
+  )
+
+  expect_identical(
+    dimnames(to_cpu(result)),
+    list(
+      observation = c("sample_a", "sample_b"),
+      output = c("score_a", "score_b")
+    )
+  )
+
+  rownames(right) <- rev(rownames(right))
+  expect_error(
+    tensor_matmul(
+      cuda_tensor(left, device = "cpu"),
+      cuda_tensor(right, device = "cpu")
+    ),
+    "inner dimension names are incompatible"
+  )
 })
 
 test_that("matrix multiplication promotes mixed and integer dtypes safely", {
@@ -41,6 +111,51 @@ test_that("reductions operate over one-based dimensions", {
   expect_equal(as.vector(to_cpu(tensor_mean(x, dim = 1))), c(1.5, 3.5, 5.5))
   expect_identical(tensor_shape(tensor_sum(x, dim = 2, keepdim = TRUE)),
                    c(2L, 1L))
+  identity <- tensor_sum(x, dim = integer())
+  expect_equal(to_cpu(identity), matrix(1:6, 2, 3))
+  expect_identical(tensor_shape(identity), c(2L, 3L))
+  expect_identical(identity$dtype, "float64")
+})
+
+test_that("reductions retain only meaningful dimension labels", {
+  source <- matrix(
+    1:6,
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  x <- cuda_tensor(source, device = "cpu")
+
+  expect_identical(
+    dimnames(tensor_sum(x, dim = 1)),
+    list(feature = c("gene_a", "gene_b", "gene_c"))
+  )
+  expect_identical(
+    dimnames(tensor_mean(x, dim = 1, keepdim = TRUE)),
+    list(
+      observation = NULL,
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  expect_null(dimnames(tensor_sum(x)))
+  full_keepdim <- tensor_sum(x, keepdim = TRUE)
+  expect_identical(dim(full_keepdim), c(1L, 1L))
+  expect_identical(
+    dimnames(full_keepdim),
+    list(observation = NULL, feature = NULL)
+  )
+  explicit_full_keepdim <- tensor_sum(x, dim = c(1, 2), keepdim = TRUE)
+  expect_identical(dim(explicit_full_keepdim), c(1L, 1L))
+  expect_identical(
+    dimnames(explicit_full_keepdim),
+    list(observation = NULL, feature = NULL)
+  )
+  expect_identical(
+    dimnames(tensor_mean(x, dim = integer(), keepdim = TRUE)),
+    dimnames(source)
+  )
 })
 
 test_that("integer reductions do not overflow", {
@@ -58,6 +173,39 @@ test_that("broadcasting follows trailing-dimension rules", {
   expect_identical(dim(result), c(2L, 3L))
   expect_equal(result[1, ], c(1, 2, 3))
   expect_equal(result[2, ], c(1, 2, 3))
+})
+
+test_that("broadcasting and arithmetic preserve compatible labels", {
+  source <- matrix(
+    1:6,
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  x <- cuda_tensor(source, device = "cpu")
+  offset <- setNames(c(0.5, 1, 1.5), colnames(source))
+
+  shifted <- x + offset
+  expect_identical(dimnames(shifted), dimnames(source))
+
+  expanded <- tensor_broadcast_to(
+    cuda_tensor(offset, device = "cpu"),
+    c(2, 3)
+  )
+  expect_identical(
+    dimnames(expanded),
+    list(NULL, c("gene_a", "gene_b", "gene_c"))
+  )
+
+  expect_error(
+    x + setNames(c(0.5, 1, 1.5), rev(colnames(source))),
+    "dimension names are incompatible"
+  )
+
+  unnamed <- cuda_tensor(unname(source), device = "cpu")
+  expect_identical(dimnames(unnamed + x), dimnames(source))
 })
 
 test_that("arithmetic operators broadcast and promote without truncation", {
@@ -91,6 +239,21 @@ test_that("reshape and transpose preserve tensor metadata and values", {
   expect_error(t(x), "two-dimensional")
   expect_error(tensor_reshape(x, c(4, 2)), "exactly")
   expect_error(tensor_reshape(x, c(2, 1.5, 2)), "whole-number")
+})
+
+test_that("transpose swaps labels and reshape drops redefined axes", {
+  source <- matrix(
+    1:6,
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  x <- cuda_tensor(source, device = "cpu")
+
+  expect_identical(dimnames(t(x)), rev(dimnames(source)))
+  expect_null(dimnames(tensor_reshape(x, c(3, 2))))
 })
 
 test_that("tensor subsetting follows R array semantics", {
@@ -177,4 +340,38 @@ test_that("invalid tensor operations fail clearly", {
     cuda_tensor(1:3, device = "cpu") == 1,
     "not supported"
   )
+})
+
+test_that("CUDA transfers preserve dimension labels when available", {
+  skip_if_not(cuda_available())
+  source <- matrix(
+    seq_len(6),
+    nrow = 2,
+    dimnames = list(
+      observation = c("sample_a", "sample_b"),
+      feature = c("gene_a", "gene_b", "gene_c")
+    )
+  )
+  gpu <- cuda_tensor(source, device = "cuda")
+
+  expect_identical(dimnames(gpu), dimnames(source))
+  expect_identical(dimnames(to_cpu(gpu)), dimnames(source))
+  expect_identical(dimnames(to_device(gpu, "cpu")), dimnames(source))
+  expect_identical(dimnames(gpu + 1), dimnames(source))
+  gpu_full_keepdim <- tensor_sum(gpu, keepdim = TRUE)
+  expect_identical(dim(gpu_full_keepdim), c(1L, 1L))
+  expect_identical(
+    dimnames(gpu_full_keepdim),
+    list(observation = NULL, feature = NULL)
+  )
+  gpu_explicit_full <- tensor_sum(gpu, dim = c(1, 2), keepdim = TRUE)
+  expect_identical(dim(gpu_explicit_full), c(1L, 1L))
+  expect_identical(
+    dimnames(gpu_explicit_full),
+    list(observation = NULL, feature = NULL)
+  )
+  gpu_identity <- tensor_sum(gpu, dim = integer())
+  expect_equal(to_cpu(gpu_identity), source)
+  expect_identical(dim(gpu_identity), dim(source))
+  expect_identical(dimnames(gpu_identity), dimnames(source))
 })

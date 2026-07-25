@@ -22,6 +22,13 @@ A \code{cudatensor}.
 \description{
 Tensor reductions
 }
+\details{
+Labels on dimensions that are not reduced are retained. A reduced
+dimension kept with size one retains its axis name but not its individual
+labels. Supplying \code{integer(0)} performs no reduction and returns the
+tensor values, shape, device, and dimnames unchanged (with the documented
+reduction dtype promotion).
+}
 \examples{
 x <- cuda_tensor(matrix(1:6, 2), device = "cpu")
 tensor_sum(x)

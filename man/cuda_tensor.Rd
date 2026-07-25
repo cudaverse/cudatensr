@@ -12,7 +12,10 @@ cuda_tensor(x, device = c("auto", "cuda", "cpu"), dtype = NULL)
 \item{device}{One of \code{"auto"}, \code{"cuda"}, or \code{"cpu"}. Auto selects CUDA
 only when \code{\link[=cuda_available]{cuda_available()}} is true.}
 
-\item{dtype}{One of \code{"float64"}, \code{"float32"}, or \code{"integer"}.}
+\item{dtype}{One of \code{"float64"}, \code{"float32"}, or \code{"integer"}.
+
+Matrix and array dimnames, including names on a one-dimensional input, are
+retained as R metadata on both CPU and CUDA tensors.}
 }
 \value{
 A \code{cudatensor} object.

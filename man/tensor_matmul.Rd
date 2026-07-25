@@ -15,6 +15,10 @@ A \code{cudatensor}.
 \description{
 Matrix multiplication for tensors
 }
+\details{
+Row names come from \code{x} and column names come from \code{y}. When both
+operands name the contracted dimension, those names must be identical.
+}
 \examples{
 x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu")
 y <- cuda_tensor(matrix(1:6, 3, 2), device = "cpu")

@@ -1,0 +1,17 @@
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+name: cudaverse-integration
+
+permissions:
+  contents: read
+
+jobs:
+  identifier-contract:
+    uses: cudaverse/.github/.github/workflows/identifier-integration.yaml@main
+    with:
+      changed_repository: ${{ github.repository }}
+      changed_source_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      changed_ref: ${{ github.event.pull_request.head.sha || github.sha }}
