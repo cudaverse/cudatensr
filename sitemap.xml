@@ -1,0 +1,21 @@
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://cudaverse.github.io/cudatensr/404.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/LICENSE-text.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/authors.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/index.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/news/index.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/cuda_available.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/cuda_tensor.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/cudatensor-operators.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/cudatensor-subset.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/index.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_broadcast_to.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_device.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_matmul.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_reshape.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_shape.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/tensor_sum.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/to_cpu.html</loc></url>
+<url><loc>https://cudaverse.github.io/cudatensr/reference/to_device.html</loc></url>
+</urlset>
+
