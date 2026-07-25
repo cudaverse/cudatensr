@@ -9,6 +9,7 @@ R objects and R package conventions.
 - Explicit `cpu`, `cuda`, and `auto` device selection.
 - Dense vectors, matrices, and arrays through a `cudatensor` S3 class.
 - CPU/GPU transfer.
+- Natural element-wise arithmetic with safe dtype promotion.
 - Matrix multiplication.
 - Sum and mean reductions over one-based R dimensions.
 - NumPy-style trailing-dimension broadcasting.
@@ -32,6 +33,7 @@ y <- cuda_tensor(matrix(1:6, 3, 2))
 
 tensor_device(x)
 to_cpu(tensor_matmul(x, y))
+to_cpu(x + 0.5)
 to_cpu(tensor_mean(x, dim = 1))
 ```
 
