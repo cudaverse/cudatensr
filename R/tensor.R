@@ -181,6 +181,46 @@ tensor_shape <- function(x) {
   x$shape
 }
 
+#' Reshape a tensor without changing its values
+#'
+#' @param x A `cudatensor`.
+#' @param shape Positive whole-number dimensions whose product equals
+#'   `length(x)`.
+#' @return A `cudatensor` on the same device with the requested shape.
+#' @export
+#' @examples
+#' x <- cuda_tensor(1:6, device = "cpu")
+#' tensor_reshape(x, c(2, 3))
+tensor_reshape <- function(x, shape) {
+  .check_tensor(x)
+  if (!is.numeric(shape) || length(shape) == 0L || anyNA(shape) ||
+      any(!is.finite(shape)) || any(shape < 1) ||
+      any(shape != as.integer(shape))) {
+    stop("`shape` must contain positive whole-number dimensions.",
+         call. = FALSE)
+  }
+  shape <- as.integer(shape)
+  if (prod(shape) != length(x)) {
+    stop("The requested shape must contain exactly `length(x)` values.",
+         call. = FALSE)
+  }
+
+  if (identical(x$backend, "torch")) {
+    return(.new_cudatensor(
+      x$storage$reshape(shape),
+      x$device,
+      x$backend,
+      x$dtype,
+      shape
+    ))
+  }
+  cuda_tensor(
+    array(to_cpu(x), dim = shape),
+    device = "cpu",
+    dtype = x$dtype
+  )
+}
+
 .check_tensor <- function(x, argument = "x") {
   if (!inherits(x, "cudatensor")) {
     stop(sprintf("`%s` must be a `cudatensor`.", argument), call. = FALSE)
@@ -492,6 +532,12 @@ tensor_broadcast_to <- function(x, shape) {
 #' @return A `cudatensor` on the device of the tensor operand on the left (or
 #'   the tensor operand on the right when the left operand is a base object).
 #' @name cudatensor-operators
+#' @examples
+#' x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu")
+#' to_cpu(x + c(0.5, 1, 1.5))
+#'
+#' y <- cuda_tensor(matrix(1:6, 3, 2), device = "cpu")
+#' to_cpu(x %*% y)
 NULL
 
 #' @rdname cudatensor-operators
@@ -532,6 +578,90 @@ Ops.cudatensor <- function(e1, e2) {
   tensor_matmul(x, y)
 }
 
+#' Subset and replace tensor values
+#'
+#' Tensor indices follow ordinary one-based R array semantics. Subsetting
+#' returns a `cudatensor`, including when a single value is selected.
+#' Replacement preserves the tensor dtype; fractional values therefore cannot
+#' be assigned to an integer tensor.
+#'
+#' The current implementation performs subsetting and replacement through a
+#' base R array, so a CUDA tensor is transferred to the CPU and the result is
+#' returned to its original device. Use these methods for data preparation,
+#' not inside performance-critical GPU loops.
+#'
+#' @param x A `cudatensor`.
+#' @param ... One-based R array indices.
+#' @param drop Whether dimensions of length one are dropped.
+#' @param value Finite numeric replacement values or another `cudatensor`.
+#' @return A `cudatensor` on the same device as `x`.
+#' @name cudatensor-subset
+NULL
+
+.tensor_subscripts <- function(...) {
+  as.list(substitute(list(...)))[-1L]
+}
+
+.tensor_eval_index <- function(operator, values, subscripts, caller,
+                               drop = NULL, replacement = NULL) {
+  arguments <- c(list(as.name(operator), quote(.tensor_values)), subscripts)
+  if (!is.null(drop)) {
+    arguments <- c(arguments, list(drop = drop))
+  }
+  if (identical(operator, "[<-")) {
+    arguments <- c(arguments, list(value = quote(.tensor_replacement)))
+  }
+  evaluation <- new.env(parent = caller)
+  evaluation$.tensor_values <- values
+  evaluation$.tensor_replacement <- replacement
+  eval(as.call(arguments), envir = evaluation)
+}
+
+#' @rdname cudatensor-subset
+#' @export
+`[.cudatensor` <- function(x, ..., drop = TRUE) {
+  .check_tensor(x)
+  if (!is.logical(drop) || length(drop) != 1L || is.na(drop)) {
+    stop("`drop` must be TRUE or FALSE.", call. = FALSE)
+  }
+  result <- .tensor_eval_index(
+    "[",
+    to_cpu(x),
+    .tensor_subscripts(...),
+    parent.frame(),
+    drop = drop
+  )
+  if (!length(result)) {
+    stop("Subsetting produced an empty tensor, which is not supported.",
+         call. = FALSE)
+  }
+  cuda_tensor(result, device = x$device, dtype = x$dtype)
+}
+
+#' @rdname cudatensor-subset
+#' @export
+`[<-.cudatensor` <- function(x, ..., value) {
+  .check_tensor(x)
+  if (inherits(value, "cudatensor")) {
+    value <- to_cpu(value)
+  }
+  if (!is.numeric(value) || !length(value) || anyNA(value) ||
+      any(!is.finite(value))) {
+    stop("`value` must contain finite numeric values.", call. = FALSE)
+  }
+  if (identical(x$dtype, "integer")) {
+    .validate_integer_values(value, "value")
+  }
+  result <- .tensor_eval_index(
+    "[<-",
+    to_cpu(x),
+    .tensor_subscripts(...),
+    parent.frame(),
+    replacement = value
+  )
+  cuda_tensor(result, device = x$device, dtype = x$dtype)
+}
+
 #' @export
 dim.cudatensor <- function(x) {
   x$shape
@@ -548,6 +678,39 @@ as.array.cudatensor <- function(x, ...) {
 }
 
 #' @export
+as.matrix.cudatensor <- function(x, rownames.force = NA, ...) {
+  .check_tensor(x)
+  if (length(x$shape) > 2L) {
+    stop("Only one- or two-dimensional tensors can be converted to a matrix.",
+         call. = FALSE)
+  }
+  values <- to_cpu(x)
+  if (length(x$shape) == 1L) {
+    return(matrix(values, ncol = 1L))
+  }
+  as.matrix(values, rownames.force = rownames.force, ...)
+}
+
+#' @export
+t.cudatensor <- function(x) {
+  .check_tensor(x)
+  if (length(x$shape) != 2L) {
+    stop("`t()` requires a two-dimensional tensor.", call. = FALSE)
+  }
+  shape <- rev(x$shape)
+  if (identical(x$backend, "torch")) {
+    return(.new_cudatensor(
+      x$storage$t(),
+      x$device,
+      x$backend,
+      x$dtype,
+      shape
+    ))
+  }
+  cuda_tensor(t(to_cpu(x)), device = "cpu", dtype = x$dtype)
+}
+
+#' @export
 print.cudatensor <- function(x, ...) {
   cat(
     sprintf(
@@ -558,6 +721,20 @@ print.cudatensor <- function(x, ...) {
       x$dtype
     )
   )
-  print(to_cpu(x), ...)
+  max_values <- getOption("cudatensr.max_print", 100L)
+  if (!is.numeric(max_values) || length(max_values) != 1L ||
+      is.na(max_values) || !is.finite(max_values) || max_values < 0) {
+    max_values <- 100L
+  }
+  if (length(x) <= max_values) {
+    print(to_cpu(x), ...)
+  } else {
+    cat(
+      sprintf(
+        "<%s values omitted; use `to_cpu()` to materialize>\n",
+        format(length(x), big.mark = ",", scientific = FALSE)
+      )
+    )
+  }
   invisible(x)
 }

@@ -1,6 +1,6 @@
 Package: cudatensr
 Title: GPU-Aware Dense Tensors for R
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person("Yaoxiang", "Li", email = "liyaoxiang@outlook.com",
            role = c("aut", "cre"))
@@ -10,7 +10,8 @@ Description: Provides an experimental R-native dense tensor abstraction with
     CUDA-enabled 'torch' installation for GPU execution and a transparent base
     R backend for portable development and continuous integration.
 License: MIT + file LICENSE
-URL: https://github.com/cudaverse/cudatensr
+URL: https://cudaverse.github.io/cudatensr/,
+    https://github.com/cudaverse/cudatensr
 BugReports: https://github.com/cudaverse/cudatensr/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

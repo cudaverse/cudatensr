@@ -1,0 +1,22 @@
+url: https://cudaverse.github.io/cudatensr/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Create, inspect, and move tensors
+  contents:
+  - cuda_tensor
+  - cuda_available
+  - tensor_shape
+  - tensor_device
+  - to_cpu
+  - to_device
+- title: Transform and compute
+  contents:
+  - cudatensor-operators
+  - cudatensor-subset
+  - tensor_reshape
+  - tensor_broadcast_to
+  - tensor_matmul
+  - tensor_sum

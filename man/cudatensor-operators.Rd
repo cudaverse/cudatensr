@@ -30,3 +30,10 @@ promoted to \code{float64} to avoid R integer overflow.
 \details{
 Use \code{\%*\%} for matrix multiplication.
 }
+\examples{
+x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu")
+to_cpu(x + c(0.5, 1, 1.5))
+
+y <- cuda_tensor(matrix(1:6, 3, 2), device = "cpu")
+to_cpu(x \%*\% y)
+}

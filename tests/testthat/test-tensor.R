@@ -77,6 +77,73 @@ test_that("arithmetic operators broadcast and promote without truncation", {
   expect_identical(shifted$dtype, "float64")
 })
 
+test_that("reshape and transpose preserve tensor metadata and values", {
+  x <- cuda_tensor(1:6, device = "cpu", dtype = "integer")
+  reshaped <- tensor_reshape(x, c(2, 3))
+  transposed <- t(reshaped)
+
+  expect_s3_class(reshaped, "cudatensor")
+  expect_identical(tensor_shape(reshaped), c(2L, 3L))
+  expect_identical(tensor_shape(transposed), c(3L, 2L))
+  expect_identical(reshaped$dtype, "integer")
+  expect_equal(to_cpu(reshaped), matrix(1:6, 2, 3))
+  expect_equal(to_cpu(transposed), t(matrix(1:6, 2, 3)))
+  expect_error(t(x), "two-dimensional")
+  expect_error(tensor_reshape(x, c(4, 2)), "exactly")
+  expect_error(tensor_reshape(x, c(2, 1.5, 2)), "whole-number")
+})
+
+test_that("tensor subsetting follows R array semantics", {
+  source <- matrix(1:12, 3, 4)
+  x <- cuda_tensor(source, device = "cpu", dtype = "integer")
+  rows <- c(3L, 1L)
+
+  subset <- x[rows, 2:4, drop = FALSE]
+  column <- x[, 2]
+  scalar <- x[2, 3]
+
+  expect_s3_class(subset, "cudatensor")
+  expect_identical(tensor_shape(subset), c(2L, 3L))
+  expect_equal(to_cpu(subset), source[rows, 2:4, drop = FALSE])
+  expect_identical(tensor_shape(column), 3L)
+  expect_equal(as.vector(to_cpu(column)), source[, 2])
+  expect_identical(tensor_shape(scalar), 1L)
+  expect_identical(as.vector(to_cpu(scalar)), source[2, 3])
+  expect_error(x[integer(), ], "empty tensor")
+  expect_error(x[, 1, drop = NA], "TRUE or FALSE")
+})
+
+test_that("tensor replacement preserves dtype and returns a tensor", {
+  x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu", dtype = "integer")
+  x[, 2] <- c(20, 30)
+  x[1, 1] <- cuda_tensor(9L, device = "cpu")
+
+  expect_s3_class(x, "cudatensor")
+  expect_identical(x$dtype, "integer")
+  expect_equal(
+    to_cpu(x),
+    matrix(c(9L, 2L, 20L, 30L, 5L, 6L), 2, 3)
+  )
+  expect_error(x[1, 1] <- 0.5, "represented exactly")
+  expect_error(x[1, 1] <- NA_real_, "finite numeric")
+})
+
+test_that("matrix conversion and large printing are predictable", {
+  vector <- cuda_tensor(1:4, device = "cpu")
+  matrix_tensor <- tensor_reshape(vector, c(2, 2))
+  array_tensor <- tensor_reshape(vector, c(2, 1, 2))
+
+  expect_identical(dim(as.matrix(vector)), c(4L, 1L))
+  expect_equal(as.matrix(matrix_tensor), matrix(1:4, 2, 2))
+  expect_error(as.matrix(array_tensor), "one- or two-dimensional")
+
+  old_options <- options(cudatensr.max_print = 3)
+  on.exit(options(old_options), add = TRUE)
+  output <- capture.output(print(vector))
+  expect_true(any(grepl("values omitted", output)))
+  expect_false(any(grepl("\\[1\\]", output)))
+})
+
 test_that("integer dtype conversion rejects lossy values", {
   expect_error(
     cuda_tensor(0.5, device = "cpu", dtype = "integer"),
