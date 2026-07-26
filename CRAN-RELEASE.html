@@ -41,7 +41,7 @@
 <ul class="task-list"><li><label><input type="checkbox">Confirm that <code>DESCRIPTION</code>, <code>NEWS.md</code>, public documentation, and examples describe the candidate exactly.</label></li>
 <li><label><input type="checkbox">Confirm that the package name conflicts with neither current nor archived CRAN packages nor current Bioconductor packages.</label></li>
 <li><label><input type="checkbox">Run the manually dispatched <code>cran-readiness</code> workflow at the exact candidate commit.</label></li>
-<li><label><input type="checkbox">Require zero errors, warnings, and notes from the full R-devel <code>R CMD check --as-cran</code>, including reference-manual generation.</label></li>
+<li><label><input type="checkbox">Require zero errors and warnings from the full R-devel <code>R CMD check --as-cran</code>, including reference-manual generation; review every note and allow only the expected <code>New submission</code> note.</label></li>
 <li><label><input type="checkbox">Review every URL and spelling result rather than suppressing unexpected findings.</label></li>
 <li><label><input type="checkbox">Review the uploaded source tarball and <code>00check.log</code>; submit that exact tarball without rebuilding it from a different commit.</label></li>
 <li><label><input type="checkbox">Check the same tarball with Win-builder R-devel before the first submission.</label></li>
