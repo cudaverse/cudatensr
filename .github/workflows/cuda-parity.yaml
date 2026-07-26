@@ -2,6 +2,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 name: cuda-parity
 
@@ -10,9 +13,22 @@ permissions:
 
 jobs:
   hardware-contract:
-    if: github.event_name == 'workflow_dispatch' || vars.CUDAVERSE_NVIDIA_CI == 'enabled'
+    # Fork, bot, draft, and non-collaborator PRs stay skipped here and are
+    # rejected again by the reusable workflow before its runner group is used.
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+       vars.CUDAVERSE_NVIDIA_CI == 'enabled') &&
+      (github.event_name != 'workflow_dispatch' ||
+       github.ref == 'refs/heads/main') &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.base.ref == 'main' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.type == 'User' &&
+        github.event.sender.type == 'User' &&
+        !endsWith(github.actor, '[bot]') &&
+        contains(
+          fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+          github.event.pull_request.author_association
+        )))
     uses: cudaverse/.github/.github/workflows/cuda-parity.yaml@main
-    with:
-      changed_repository: cudaverse/cudatensr
-      changed_source_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-      changed_ref: ${{ github.event.pull_request.head.sha || github.sha }}
