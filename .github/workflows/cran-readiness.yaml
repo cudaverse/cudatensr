@@ -27,9 +27,15 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::spelling, any::urlchecker
+          extra-packages: any::spelling, any::urlchecker, any::tinytex
           needs: check
           dependencies: '"all"'
+
+      - name: Install the HTML manual validator
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends tidy
 
       - name: Require a clean spelling inventory
         shell: Rscript {0}
@@ -52,6 +58,33 @@ jobs:
           R CMD build .
           mv cudatensr_*.tar.gz candidate/
 
+      - name: Build and retain the reference manual
+        shell: bash
+        run: |
+          mkdir -p candidate/source candidate/manual-build
+          tar -xzf candidate/cudatensr_*.tar.gz -C candidate/source
+          set +e
+          R CMD Rd2pdf \
+            --no-clean \
+            --no-preview \
+            --force \
+            --build-dir=candidate/manual-build \
+            --output=candidate/cudatensr-manual.pdf \
+            candidate/source/cudatensr
+          manual_status=$?
+          set -e
+          if [ "$manual_status" -ne 0 ]; then
+            Rscript -e \
+              'tinytex::parse_install("candidate/manual-build/Rd2.log")'
+            R CMD Rd2pdf \
+              --no-clean \
+              --no-preview \
+              --force \
+              --build-dir=candidate/manual-build \
+              --output=candidate/cudatensr-manual.pdf \
+              candidate/source/cudatensr
+          fi
+
       - name: Run the full CRAN-style check
         shell: bash
         run: |
@@ -64,7 +97,11 @@ jobs:
           name: cudatensr-cran-candidate-${{ github.sha }}
           path: |
             candidate/cudatensr_*.tar.gz
+            candidate/cudatensr-manual.pdf
+            candidate/manual-build/**
             cudatensr.Rcheck/00check.log
             cudatensr.Rcheck/cudatensr-manual.pdf
+            cudatensr.Rcheck/*.log
+            cudatensr.Rcheck/*.tex
           if-no-files-found: warn
           retention-days: 14

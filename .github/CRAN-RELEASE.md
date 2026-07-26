@@ -12,8 +12,9 @@ but it is not by itself a release.
       CRAN packages nor current Bioconductor packages.
 - [ ] Run the manually dispatched `cran-readiness` workflow at the exact
       candidate commit.
-- [ ] Require zero errors, warnings, and notes from the full R-devel
-      `R CMD check --as-cran`, including reference-manual generation.
+- [ ] Require zero errors and warnings from the full R-devel
+      `R CMD check --as-cran`, including reference-manual generation; review
+      every note and allow only the expected `New submission` note.
 - [ ] Review every URL and spelling result rather than suppressing unexpected
       findings.
 - [ ] Review the uploaded source tarball and `00check.log`; submit that exact
