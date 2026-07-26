@@ -21,11 +21,11 @@ x %*% y
 
 - e1, e2:
 
-  A `cudatensor` or finite numeric object for element-wise arithmetic.
+  A `cudatensor` or numeric object for element-wise arithmetic.
 
 - x, y:
 
-  A `cudatensor` or finite numeric matrix for matrix multiplication.
+  A `cudatensor` or numeric matrix for matrix multiplication.
 
 ## Value
 

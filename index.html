@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">cudatensr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,7 @@
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/index.html">Articles</a></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
@@ -116,6 +117,50 @@
 <h2 id="honest-backend-semantics">Honest backend semantics<a class="anchor" aria-label="anchor" href="#honest-backend-semantics"></a>
 </h2>
 <p><code>device = "auto"</code> selects CUDA only when the optional <code>torch</code> package reports a usable CUDA backend; otherwise it selects the base R CPU backend. The object always reports its actual device and backend through <code><a href="reference/tensor_device.html">tensor_device()</a></code>.</p>
+<p>Use <code><a href="reference/cuda_diagnostics.html">cuda_diagnostics()</a></code> to inspect the runtime and <code><a href="reference/cuda_provenance.html">cuda_provenance()</a></code> to see what each operation actually did. The <a href="https://cudaverse.github.io/cudatensr/articles/backend-provenance.html">backend and provenance tutorial</a> contains a complete CPU example, an optional CUDA example, transfer and memory guidance, and the NVIDIA hardware-test contract.</p>
+<table class="table">
+<colgroup>
+<col width="25%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
+</colgroup>
+<thead><tr>
+<th>Request</th>
+<th>Actual construction backend</th>
+<th>Output device</th>
+<th>Fallback</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>"cpu"</code></td>
+<td>CPU / base R</td>
+<td>CPU</td>
+<td>No</td>
+</tr>
+<tr>
+<td>
+<code>"auto"</code> with usable CUDA</td>
+<td>CUDA / torch</td>
+<td>CUDA</td>
+<td>No</td>
+</tr>
+<tr>
+<td>
+<code>"auto"</code> without usable CUDA</td>
+<td>CPU / base R</td>
+<td>CPU</td>
+<td>Yes, recorded with the reason</td>
+</tr>
+<tr>
+<td><code>"cuda"</code></td>
+<td>CUDA / torch, or a strict error</td>
+<td>CUDA when successful</td>
+<td>Never silently</td>
+</tr>
+</tbody>
+</table>
+<p>This table describes tensor construction. Later operations can contain several stages, so the <code>device</code> used for computation can differ from the <code>output_device</code> holding the result. The provenance table is authoritative.</p>
 <p>Printing tensors with more than 100 values shows metadata without copying a large CUDA allocation back to R. Use <code>to_cpu(x)</code> when you intentionally want the complete base R array, or change the display threshold with <code>options(cudatensr.max_print = 500)</code>.</p>
 <p>This initial release is an API and correctness milestone, not yet a claim of speedups for every workload.</p>
 <p>For installation, device verification, memory advice, and common failures, see the cudaverse <a href="https://github.com/cudaverse/.github/blob/main/GPU_SETUP.md" class="external-link">GPU setup and troubleshooting guide</a>.</p>

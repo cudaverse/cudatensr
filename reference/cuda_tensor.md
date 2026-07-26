@@ -25,7 +25,11 @@ cuda_tensor(x, device = c("auto", "cuda", "cpu"), dtype = NULL)
   One of `"float64"`, `"float32"`, or `"integer"`.
 
   Matrix and array dimnames, including names on a one-dimensional input,
-  are retained as R metadata on both CPU and CUDA tensors.
+  are retained as R metadata on both CPU and CUDA tensors. Floating
+  dtypes accept IEEE `Inf`, `-Inf`, `NaN`, and R's floating `NA`; torch
+  backends may normalize `NA` to `NaN`. Integer dtype rejects non-finite
+  or fractional values because they have no exact integer
+  representation.
 
 ## Value
 

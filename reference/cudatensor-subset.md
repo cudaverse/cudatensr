@@ -31,7 +31,7 @@ x[...] <- value
 
 - value:
 
-  Finite numeric replacement values or another `cudatensor`.
+  Numeric replacement values or another `cudatensor`.
 
 ## Value
 

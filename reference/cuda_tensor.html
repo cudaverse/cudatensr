@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cudatensr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,6 +16,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/index.html">Articles</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -58,7 +59,11 @@ only when <code><a href="cuda_available.html">cuda_available()</a></code> is tru
 <dt id="arg-dtype">dtype<a class="anchor" aria-label="anchor" href="#arg-dtype"></a></dt>
 <dd><p>One of <code>"float64"</code>, <code>"float32"</code>, or <code>"integer"</code>.</p>
 <p>Matrix and array dimnames, including names on a one-dimensional input, are
-retained as R metadata on both CPU and CUDA tensors.</p></dd>
+retained as R metadata on both CPU and CUDA tensors.
+Floating dtypes accept IEEE <code>Inf</code>, <code>-Inf</code>, <code>NaN</code>, and R's floating <code>NA</code>;
+torch backends may normalize <code>NA</code> to <code>NaN</code>. Integer dtype rejects
+non-finite or fractional values because they have no exact integer
+representation.</p></dd>
 
 </dl></div>
     <div class="section level2">
