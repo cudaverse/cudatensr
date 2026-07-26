@@ -8,6 +8,9 @@ for end-to-end GPU execution.
 
 ``` r
 cuda_provenance(x)
+
+# Default S3 method
+cuda_provenance(x)
 ```
 
 ## Arguments
@@ -22,6 +25,12 @@ A `cuda_provenance` data frame with columns `stage`, `requested_device`,
 `device`, `backend`, `selection_reason`, `fallback`, and
 `output_device`. Its `schema` and `compute_device` attributes contain
 the contract version and aggregate actual compute device.
+
+## Details
+
+`cuda_provenance()` is the canonical cudaverse S3 generic. Extension
+packages can register methods for container classes while ordinary
+cudaverse results continue through the default method.
 
 ## Examples
 

@@ -2,6 +2,11 @@
 
 ## cudatensr 0.2.0
 
+- [`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
+  is now the canonical cudaverse S3 generic. Its default method
+  preserves the existing stage inspection and validation behavior while
+  allowing extension packages to register container-specific methods
+  without load-order-dependent wrappers.
 - Added
   [`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
   and strict, classed device selection through

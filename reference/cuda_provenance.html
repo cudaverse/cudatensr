@@ -46,7 +46,10 @@ end-to-end GPU execution.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cuda_provenance</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cuda_provenance</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Default S3 method</span></span>
+<span><span class="fu">cuda_provenance</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -63,6 +66,12 @@ end-to-end GPU execution.</p>
 <code>requested_device</code>, <code>device</code>, <code>backend</code>, <code>selection_reason</code>, <code>fallback</code>,
 and <code>output_device</code>. Its <code>schema</code> and <code>compute_device</code> attributes contain
 the contract version and aggregate actual compute device.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><code>cuda_provenance()</code> is the canonical cudaverse S3 generic. Extension
+packages can register methods for container classes while ordinary
+cudaverse results continue through the default method.</p>
     </div>
 
     <div class="section level2">

@@ -35,7 +35,9 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.0" id="cudatensr-020">cudatensr 0.2.0<a class="anchor" aria-label="anchor" href="#cudatensr-020"></a></h2>
-<ul><li>Added <code><a href="../reference/cuda_diagnostics.html">cuda_diagnostics()</a></code> and strict, classed device selection through <code><a href="../reference/cuda_select_device.html">cuda_select_device()</a></code>. Automatic CPU selection now records why CUDA was not selected; an explicit CUDA request never silently falls back.</li>
+<ul><li>
+<code><a href="../reference/cuda_provenance.html">cuda_provenance()</a></code> is now the canonical cudaverse S3 generic. Its default method preserves the existing stage inspection and validation behavior while allowing extension packages to register container-specific methods without load-order-dependent wrappers.</li>
+<li>Added <code><a href="../reference/cuda_diagnostics.html">cuda_diagnostics()</a></code> and strict, classed device selection through <code><a href="../reference/cuda_select_device.html">cuda_select_device()</a></code>. Automatic CPU selection now records why CUDA was not selected; an explicit CUDA request never silently falls back.</li>
 <li>Added the shared <code>cudaverse-stage/1</code> provenance contract. <code><a href="../reference/cuda_stage.html">cuda_stage()</a></code> lets extensions record stages, while <code><a href="../reference/cuda_provenance.html">cuda_provenance()</a></code> reports requested, actual, backend, fallback, and output-device metadata consistently.</li>
 <li>Tensor construction and public tensor operations now identify their actual compute stage. CUDA subsetting and replacement report their CPU round trip as hybrid execution.</li>
 <li>CPU <code>float32</code> tensor storage now rounds to IEEE single-precision values instead of retaining unquantized doubles under a float32 label. Base R kernels still accumulate in double precision before rounding their output; CUDA kernels use their native torch dtype.</li>
