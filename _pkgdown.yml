@@ -3,11 +3,20 @@ url: https://cudaverse.github.io/cudatensr/
 template:
   bootstrap: 5
 
+articles:
+- title: Guides
+  contents:
+  - backend-provenance
+
 reference:
 - title: Create, inspect, and move tensors
   contents:
   - cuda_tensor
   - cuda_available
+  - cuda_diagnostics
+  - cuda_select_device
+  - cuda_provenance
+  - cuda_stage
   - tensor_shape
   - dimnames.cudatensor
   - tensor_device

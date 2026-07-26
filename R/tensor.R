@@ -8,14 +8,21 @@
 #' @examples
 #' cuda_available()
 cuda_available <- function() {
-  if (!requireNamespace("torch", quietly = TRUE)) {
-    return(FALSE)
-  }
-  isTRUE(tryCatch(torch::cuda_is_available(), error = function(...) FALSE))
+  isTRUE(cuda_diagnostics()$cuda_available)
 }
 
 .tensor_dtype <- function(x) {
   if (is.integer(x)) "integer" else "float64"
+}
+
+.as_float32 <- function(x) {
+  values <- readBin(
+    writeBin(as.numeric(x), raw(), size = 4L),
+    what = double(),
+    n = length(x),
+    size = 4L
+  )
+  array(values, dim = dim(x), dimnames = dimnames(x))
 }
 
 .validate_tensor_dimnames <- function(value, shape, argument = "dimnames") {
@@ -209,7 +216,8 @@ cuda_available <- function() {
 
 .validate_integer_values <- function(x, argument = "x") {
   values <- as.numeric(x)
-  representable <- values == trunc(values) &
+  representable <- is.finite(values) &
+    values == trunc(values) &
     values >= -.Machine$integer.max &
     values <= .Machine$integer.max
   if (any(!representable)) {
@@ -225,8 +233,21 @@ cuda_available <- function() {
 }
 
 .new_cudatensor <- function(storage, device, backend, dtype, shape,
-                            dimnames = NULL) {
+                            dimnames = NULL, compute_stages = NULL) {
   shape <- as.integer(shape)
+  if (is.null(compute_stages)) {
+    compute_stages <- list(
+      tensor_operation = cuda_stage(
+        requested_device = "inherited",
+        device = device,
+        backend = backend,
+        selection_reason = "inherited_device",
+        fallback = FALSE,
+        output_device = device
+      )
+    )
+  }
+  compute_stages <- .validate_cuda_stages(compute_stages)
   structure(
     list(
       storage = storage,
@@ -234,10 +255,51 @@ cuda_available <- function() {
       backend = backend,
       dtype = dtype,
       shape = shape,
-      dimnames = .validate_tensor_dimnames(dimnames, shape)
+      dimnames = .validate_tensor_dimnames(dimnames, shape),
+      provenance_schema = .cudaverse_provenance_schema,
+      compute_device = .compute_device_from_stages(compute_stages),
+      compute_stages = compute_stages
     ),
     class = "cudatensor"
   )
+}
+
+.tensor_stage <- function(device, backend, output_device = device,
+                          requested_device = "inherited",
+                          reason = "inherited_device") {
+  cuda_stage(
+    requested_device = requested_device,
+    device = device,
+    backend = backend,
+    selection_reason = reason,
+    fallback = FALSE,
+    output_device = output_device
+  )
+}
+
+.with_tensor_stages <- function(x, stages) {
+  .check_tensor(x)
+  provenance <- cuda_provenance(stages)
+  x$provenance_schema <- attr(provenance, "schema", exact = TRUE)
+  x$compute_device <- attr(provenance, "compute_device", exact = TRUE)
+  x$compute_stages <- attr(provenance, "compute_stages", exact = TRUE)
+  x
+}
+
+.tensor_result_stage <- function(x, stage, device = x$device,
+                                 backend = x$backend,
+                                 output_device = device,
+                                 requested_device = "inherited",
+                                 reason = "inherited_device") {
+  stages <- list(.tensor_stage(
+    device = device,
+    backend = backend,
+    output_device = output_device,
+    requested_device = requested_device,
+    reason = reason
+  ))
+  names(stages) <- stage
+  .with_tensor_stages(x, stages)
 }
 
 .torch_dtype <- function(dtype) {
@@ -272,10 +334,14 @@ cuda_available <- function() {
     storage <- x$storage$to(dtype = .torch_dtype(dtype))
     return(.new_cudatensor(
       storage, x$device, x$backend, dtype, x$shape,
-      dimnames = .tensor_dimnames(x)
+      dimnames = .tensor_dimnames(x),
+      compute_stages = list(
+        cast = .tensor_stage(x$device, x$backend)
+      )
     ))
   }
-  cuda_tensor(to_cpu(x), device = "cpu", dtype = dtype)
+  result <- cuda_tensor(to_cpu(x), device = "cpu", dtype = dtype)
+  .tensor_result_stage(result, "cast")
 }
 
 #' Create a GPU-aware tensor
@@ -287,6 +353,10 @@ cuda_available <- function() {
 #'
 #' Matrix and array dimnames, including names on a one-dimensional input, are
 #' retained as R metadata on both CPU and CUDA tensors.
+#' Floating dtypes accept IEEE `Inf`, `-Inf`, `NaN`, and R's floating `NA`;
+#' torch backends may normalize `NA` to `NaN`. Integer dtype rejects
+#' non-finite or fractional values because they have no exact integer
+#' representation.
 #'
 #' @return A `cudatensor` object.
 #' @export
@@ -295,14 +365,13 @@ cuda_available <- function() {
 #' x
 cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
                         dtype = NULL) {
-  device <- match.arg(device)
+  requested_device <- match.arg(device)
+  selection <- cuda_select_device(requested_device)
+  device <- selection$device
   if (inherits(x, "cudatensor")) {
     .tensor_dimnames(x)
     if (is.null(dtype)) {
       dtype <- x$dtype
-    }
-    if (device == "auto") {
-      device <- if (cuda_available()) "cuda" else "cpu"
     }
     if (identical(device, x$device) && identical(dtype, x$dtype)) {
       return(x)
@@ -310,9 +379,8 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
     x <- to_cpu(x)
   }
 
-  if (!is.numeric(x) || length(x) == 0L || anyNA(x) ||
-      any(!is.finite(x))) {
-    stop("`x` must contain finite numeric values.", call. = FALSE)
+  if (!is.numeric(x) || length(x) == 0L) {
+    stop("`x` must be a non-empty numeric object.", call. = FALSE)
   }
   if (is.null(dim(x))) {
     value_names <- names(x)
@@ -328,19 +396,21 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
   if (identical(dtype, "integer")) {
     .validate_integer_values(x)
   }
-  if (device == "auto") {
-    device <- if (cuda_available()) "cuda" else "cpu"
+  if (identical(dtype, "float32")) {
+    x <- .as_float32(x)
   }
-  if (device == "cuda" && !cuda_available()) {
-    stop(
-      "CUDA is unavailable. Install a CUDA-enabled `torch` backend or use ",
-      "`device = \"cpu\"`.",
-      call. = FALSE
-    )
-  }
-
   shape <- dim(x)
   tensor_dimnames <- .validate_tensor_dimnames(dimnames(x), shape)
+  materialization <- list(
+    tensor_materialization = cuda_stage(
+      requested_device = selection$requested_device,
+      device = selection$device,
+      backend = if (identical(device, "cuda")) "torch" else "base",
+      selection_reason = selection$selection_reason,
+      fallback = selection$fallback,
+      output_device = selection$device
+    )
+  )
   if (device == "cuda") {
     storage <- torch::torch_tensor(
       x,
@@ -349,7 +419,8 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
     )
     return(.new_cudatensor(
       storage, "cuda", "torch", dtype, shape,
-      dimnames = tensor_dimnames
+      dimnames = tensor_dimnames,
+      compute_stages = materialization
     ))
   }
 
@@ -361,7 +432,8 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
   )
   .new_cudatensor(
     storage, "cpu", "base", dtype, shape,
-    dimnames = tensor_dimnames
+    dimnames = tensor_dimnames,
+    compute_stages = materialization
   )
 }
 
@@ -419,14 +491,18 @@ tensor_reshape <- function(x, shape) {
       x$device,
       x$backend,
       x$dtype,
-      shape
+      shape,
+      compute_stages = list(
+        reshape = .tensor_stage(x$device, x$backend)
+      )
     ))
   }
-  cuda_tensor(
+  result <- cuda_tensor(
     array(to_cpu(x), dim = shape),
     device = "cpu",
     dtype = x$dtype
   )
+  .tensor_result_stage(result, "reshape")
 }
 
 .check_tensor <- function(x, argument = "x") {
@@ -451,7 +527,13 @@ to_device <- function(x, device = c("cpu", "cuda")) {
   if (identical(x$device, device)) {
     return(x)
   }
-  cuda_tensor(to_cpu(x), device = device, dtype = x$dtype)
+  result <- cuda_tensor(to_cpu(x), device = device, dtype = x$dtype)
+  .tensor_result_stage(
+    result,
+    "device_transfer",
+    requested_device = device,
+    reason = "explicit_transfer"
+  )
 }
 
 #' Transfer tensor data to base R
@@ -507,7 +589,8 @@ tensor_matmul <- function(x, y) {
     stop("Tensor dimensions are not conformable for matrix multiplication.",
          call. = FALSE)
   }
-  if (!identical(x$device, y$device)) {
+  transfer_needed <- !identical(x$device, y$device)
+  if (transfer_needed) {
     y <- to_device(y, x$device)
   }
   result_dtype <- .promote_tensor_dtype(x$dtype, y$dtype, "matmul")
@@ -520,16 +603,20 @@ tensor_matmul <- function(x, y) {
     return(.new_cudatensor(
       storage, x$device, x$backend, result_dtype,
       c(x$shape[[1]], y$shape[[2]]),
-      dimnames = result_dimnames
+      dimnames = result_dimnames,
+      compute_stages = list(
+        matrix_multiply = .tensor_stage(x$device, x$backend)
+      )
     ))
   }
   result <- to_cpu(x) %*% to_cpu(y)
   dimnames(result) <- result_dimnames
-  cuda_tensor(
+  output <- cuda_tensor(
     result,
     device = "cpu",
     dtype = result_dtype
   )
+  .tensor_result_stage(output, "matrix_multiply")
 }
 
 .tensor_reduce <- function(x, dim, keepdim, fun, torch_method,
@@ -574,7 +661,11 @@ tensor_matmul <- function(x, y) {
     }
     return(.new_cudatensor(
       storage, x$device, x$backend, result_dtype, shape,
-      dimnames = result_dimnames
+      dimnames = result_dimnames,
+      compute_stages = structure(
+        list(.tensor_stage(x$device, x$backend)),
+        names = torch_method
+      )
     ))
   }
 
@@ -605,7 +696,8 @@ tensor_matmul <- function(x, y) {
     x$shape[setdiff(seq_along(x$shape), dim)]
   }
   dimnames(reduced) <- result_dimnames
-  cuda_tensor(reduced, device = "cpu", dtype = result_dtype)
+  output <- cuda_tensor(reduced, device = "cpu", dtype = result_dtype)
+  .tensor_result_stage(output, torch_method)
 }
 
 #' Tensor reductions
@@ -672,7 +764,10 @@ tensor_broadcast_to <- function(x, shape) {
     storage <- x$storage$reshape(padded)$expand(shape)
     return(.new_cudatensor(
       storage, x$device, x$backend, x$dtype, shape,
-      dimnames = result_dimnames
+      dimnames = result_dimnames,
+      compute_stages = list(
+        broadcast = .tensor_stage(x$device, x$backend)
+      )
     ))
   }
 
@@ -686,7 +781,8 @@ tensor_broadcast_to <- function(x, shape) {
   )
   result <- array(as.vector(to_cpu(x))[source_index], dim = shape)
   dimnames(result) <- result_dimnames
-  cuda_tensor(result, device = "cpu", dtype = x$dtype)
+  output <- cuda_tensor(result, device = "cpu", dtype = x$dtype)
+  .tensor_result_stage(output, "broadcast")
 }
 
 .broadcast_shape <- function(x, y) {
@@ -747,7 +843,10 @@ tensor_broadcast_to <- function(x, shape) {
     )
     return(.new_cudatensor(
       storage, e1$device, e1$backend, dtype, shape,
-      dimnames = result_dimnames
+      dimnames = result_dimnames,
+      compute_stages = list(
+        arithmetic = .tensor_stage(e1$device, e1$backend)
+      )
     ))
   }
 
@@ -760,7 +859,8 @@ tensor_broadcast_to <- function(x, shape) {
     "^" = to_cpu(e1)^to_cpu(e2)
   )
   dimnames(values) <- result_dimnames
-  cuda_tensor(values, device = "cpu", dtype = dtype)
+  output <- cuda_tensor(values, device = "cpu", dtype = dtype)
+  .tensor_result_stage(output, "arithmetic")
 }
 
 #' Arithmetic operators for GPU-aware tensors
@@ -774,9 +874,9 @@ tensor_broadcast_to <- function(x, shape) {
 #'
 #' Use `%*%` for matrix multiplication.
 #'
-#' @param e1,e2 A `cudatensor` or finite numeric object for element-wise
+#' @param e1,e2 A `cudatensor` or numeric object for element-wise
 #'   arithmetic.
-#' @param x,y A `cudatensor` or finite numeric matrix for matrix
+#' @param x,y A `cudatensor` or numeric matrix for matrix
 #'   multiplication.
 #' @return A `cudatensor` on the device of the tensor operand on the left (or
 #'   the tensor operand on the right when the left operand is a base object).
@@ -842,7 +942,7 @@ Ops.cudatensor <- function(e1, e2) {
 #' @param x A `cudatensor`.
 #' @param ... One-based R array indices.
 #' @param drop Whether dimensions of length one are dropped.
-#' @param value Finite numeric replacement values or another `cudatensor`.
+#' @param value Numeric replacement values or another `cudatensor`.
 #' @return A `cudatensor` on the same device as `x`.
 #' @name cudatensor-subset
 NULL
@@ -884,7 +984,29 @@ NULL
     stop("Subsetting produced an empty tensor, which is not supported.",
          call. = FALSE)
   }
-  cuda_tensor(result, device = x$device, dtype = x$dtype)
+  output <- cuda_tensor(result, device = x$device, dtype = x$dtype)
+  if (identical(x$device, "cuda")) {
+    return(.with_tensor_stages(
+      output,
+      list(
+        materialization = .tensor_stage(
+          "cpu",
+          "base",
+          output_device = "cpu",
+          reason = "input_transfer"
+        ),
+        subset = .tensor_stage("cpu", "base"),
+        upload = .tensor_stage(
+          "cuda",
+          "torch",
+          output_device = "cuda",
+          requested_device = "cuda",
+          reason = "output_transfer"
+        )
+      )
+    ))
+  }
+  .tensor_result_stage(output, "subset")
 }
 
 #' @rdname cudatensor-subset
@@ -894,9 +1016,8 @@ NULL
   if (inherits(value, "cudatensor")) {
     value <- to_cpu(value)
   }
-  if (!is.numeric(value) || !length(value) || anyNA(value) ||
-      any(!is.finite(value))) {
-    stop("`value` must contain finite numeric values.", call. = FALSE)
+  if (!is.numeric(value) || !length(value)) {
+    stop("`value` must be a non-empty numeric object.", call. = FALSE)
   }
   if (identical(x$dtype, "integer")) {
     .validate_integer_values(value, "value")
@@ -908,7 +1029,29 @@ NULL
     parent.frame(),
     replacement = value
   )
-  cuda_tensor(result, device = x$device, dtype = x$dtype)
+  output <- cuda_tensor(result, device = x$device, dtype = x$dtype)
+  if (identical(x$device, "cuda")) {
+    return(.with_tensor_stages(
+      output,
+      list(
+        materialization = .tensor_stage(
+          "cpu",
+          "base",
+          output_device = "cpu",
+          reason = "input_transfer"
+        ),
+        replacement = .tensor_stage("cpu", "base"),
+        upload = .tensor_stage(
+          "cuda",
+          "torch",
+          output_device = "cuda",
+          requested_device = "cuda",
+          reason = "output_transfer"
+        )
+      )
+    ))
+  }
+  .tensor_result_stage(output, "replacement")
 }
 
 #' @export
@@ -976,12 +1119,16 @@ t.cudatensor <- function(x) {
       x$backend,
       x$dtype,
       shape,
-      dimnames = result_dimnames
+      dimnames = result_dimnames,
+      compute_stages = list(
+        transpose = .tensor_stage(x$device, x$backend)
+      )
     ))
   }
   result <- t(to_cpu(x))
   dimnames(result) <- result_dimnames
-  cuda_tensor(result, device = "cpu", dtype = x$dtype)
+  output <- cuda_tensor(result, device = "cpu", dtype = x$dtype)
+  .tensor_result_stage(output, "transpose")
 }
 
 #' @export

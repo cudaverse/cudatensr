@@ -11,10 +11,10 @@
 \method{\%*\%}{cudatensor}(x, y)
 }
 \arguments{
-\item{e1, e2}{A \code{cudatensor} or finite numeric object for element-wise
+\item{e1, e2}{A \code{cudatensor} or numeric object for element-wise
 arithmetic.}
 
-\item{x, y}{A \code{cudatensor} or finite numeric matrix for matrix
+\item{x, y}{A \code{cudatensor} or numeric matrix for matrix
 multiplication.}
 }
 \value{

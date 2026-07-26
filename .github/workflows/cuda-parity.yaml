@@ -1,0 +1,18 @@
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+name: cuda-parity
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-contract:
+    if: github.event_name == 'workflow_dispatch' || vars.CUDAVERSE_NVIDIA_CI == 'enabled'
+    uses: cudaverse/.github/.github/workflows/cuda-parity.yaml@main
+    with:
+      changed_repository: cudaverse/cudatensr
+      changed_source_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      changed_ref: ${{ github.event.pull_request.head.sha || github.sha }}

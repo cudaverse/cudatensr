@@ -288,7 +288,7 @@ test_that("tensor replacement preserves dtype and returns a tensor", {
     matrix(c(9L, 2L, 20L, 30L, 5L, 6L), 2, 3)
   )
   expect_error(x[1, 1] <- 0.5, "represented exactly")
-  expect_error(x[1, 1] <- NA_real_, "finite numeric")
+  expect_error(x[1, 1] <- NA_real_, "represented exactly")
 })
 
 test_that("matrix conversion and large printing are predictable", {
@@ -319,7 +319,7 @@ test_that("integer dtype conversion rejects lossy values", {
 })
 
 test_that("invalid tensor operations fail clearly", {
-  expect_error(cuda_tensor(c(1, NA), device = "cpu"), "finite")
+  expect_error(cuda_tensor(character(), device = "cpu"), "numeric")
   expect_error(
     tensor_matmul(
       cuda_tensor(matrix(1:4, 2), device = "cpu"),

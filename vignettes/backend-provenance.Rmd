@@ -1,0 +1,190 @@
+---
+title: "Backend selection and compute provenance"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Backend selection and compute provenance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`cudatensr` separates four questions that are easy to conflate:
+
+1. What device did the caller request?
+2. Where did each stage actually compute?
+3. Which concrete backend implemented that stage?
+4. On which device does the returned value live?
+
+The answers are recorded with the `cudaverse-stage/1` provenance schema.
+This tutorial runs completely on CPU. Its CUDA section is optional and only
+runs when a usable CUDA-enabled torch installation is visible.
+
+## Inspect the runtime
+
+```{r}
+library(cudatensr)
+
+diagnostics <- cuda_diagnostics()
+diagnostics
+```
+
+`cuda_diagnostics()` is non-destructive: it does not install torch or download
+a runtime. Important fields are `torch_installed`, `torch_version`,
+`cuda_available`, `cuda_device_count`, `reason`, and `detection_error`.
+
+Device requests have these semantics:
+
+| Requested device | Actual device | Output device at construction | Fallback |
+|---|---|---|---|
+| `"cpu"` | CPU | CPU | `FALSE` |
+| `"auto"` with usable CUDA | CUDA | CUDA | `FALSE` |
+| `"auto"` without usable CUDA | CPU | CPU | `TRUE`, with a recorded reason |
+| `"cuda"` | CUDA, or an error | CUDA when successful | Never silent |
+
+An explicit CUDA request is strict. If CUDA is unavailable,
+`cuda_tensor(..., device = "cuda")` signals a
+`cudaverse_cuda_unavailable` condition instead of returning a CPU tensor.
+
+## A portable CPU workflow
+
+Use `device = "cpu"` when reproducible portable execution matters more than
+automatic hardware selection.
+
+```{r}
+left_source <- matrix(
+  1:6,
+  nrow = 2,
+  dimnames = list(
+    sample = c("sample_a", "sample_b"),
+    feature = c("gene_a", "gene_b", "gene_c")
+  )
+)
+right_source <- matrix(
+  seq_len(6) / 10,
+  nrow = 3,
+  dimnames = list(
+    feature = c("gene_a", "gene_b", "gene_c"),
+    component = c("component_1", "component_2")
+  )
+)
+
+left <- cuda_tensor(left_source, device = "cpu", dtype = "float64")
+right <- cuda_tensor(right_source, device = "cpu", dtype = "float64")
+product <- tensor_matmul(left, right)
+
+tensor_device(product)
+to_cpu(product)
+```
+
+Every returned `cudatensor` records the actual stage:
+
+```{r}
+construction_provenance <- cuda_provenance(left)
+construction_provenance
+
+product_provenance <- cuda_provenance(product)
+product_provenance
+
+attr(product_provenance, "schema")
+attr(product_provenance, "compute_device")
+```
+
+The provenance table has one row per stage:
+
+- `requested_device` is the caller's policy (`"cpu"`, `"cuda"`, `"auto"`,
+  `"fixed-cpu"`, or `"inherited"`);
+- `device` is where that stage actually computed;
+- `backend` names the implementation, such as `base` or `torch`;
+- `selection_reason` explains the resolution;
+- `fallback` is only true when an automatic request selected CPU;
+- `output_device` is where that stage placed its result.
+
+Do not infer the output location from `device`. A transfer or hybrid operation
+can compute on one device and return data on another.
+
+## Automatic selection is observable
+
+The following call is portable. It chooses CUDA only when diagnostics report a
+usable device; otherwise it returns a CPU tensor and records the fallback.
+
+```{r}
+automatic <- cuda_tensor(matrix(1:4, 2), device = "auto")
+cuda_provenance(automatic)
+```
+
+This makes an automatic CPU result distinguishable from an explicit CPU
+request. For production runs that require a GPU, use `device = "cuda"` rather
+than `"auto"`.
+
+## Optional CUDA path
+
+```{r}
+if (cuda_available()) {
+  gpu <- cuda_tensor(left_source, device = "cuda", dtype = "float64")
+  gpu_result <- tensor_sum(gpu, dim = 1)
+
+  tensor_device(gpu_result)
+  cuda_provenance(gpu_result)
+
+  # CUDA subsetting currently performs a CPU round trip and records the
+  # transfer stages before returning a CUDA tensor.
+  gpu_subset <- gpu[1, , drop = FALSE]
+  cuda_provenance(gpu_subset)
+}
+```
+
+The guard keeps this installed vignette runnable on machines without NVIDIA
+hardware. It is not evidence that the CUDA path was tested.
+
+## Dense memory and transfer limits
+
+`cudatensr` uses dense storage. The payload alone is approximately
+`prod(shape) * bytes_per_value`, before outputs and temporary tensors. The CPU
+fallback uses ordinary R vectors, so its physical storage differs from torch:
+
+| dtype | CPU base storage | CUDA torch storage |
+|---|---:|---:|
+| `float32` | 8 bytes | 4 bytes |
+| `float64` | 8 bytes | 8 bytes |
+| `integer` | 4 bytes | 8 bytes |
+
+CPU `float32` values are rounded to IEEE single precision when stored and
+after each public operation, but base R kernels accumulate in double
+precision. CUDA kernels compute in the native torch dtype. Results should
+therefore be compared with an explicit tolerance rather than expected to be
+bit-for-bit identical. Floating tensors may contain IEEE `Inf`, `-Inf`, and
+`NaN`; integer tensors reject values that cannot be represented exactly.
+
+Creating a CUDA tensor from an R object transfers the dense input from host
+memory to GPU memory. `to_cpu()`, `as.array()`, and `as.matrix()` materialize
+the complete result in host memory. Mixed-device binary operations move the
+right operand to the left operand's device. CUDA subsetting and replacement
+currently make a CPU round trip; matrix arithmetic, broadcasting, reductions,
+reshape, and transpose use the tensor's backend.
+
+Large operations can temporarily require input, output, and intermediate
+allocations at once. The package does not currently provide out-of-core
+execution or automatic chunking. Printing a tensor with more than 100 values
+shows metadata without copying the full CUDA allocation; explicitly call
+`to_cpu()` only when that transfer is intended.
+
+## Hardware-gated validation
+
+Portable examples and ordinary R CMD check jobs use CPU and may guard optional
+CUDA code with `if (cuda_available())`. The repository's `cuda-parity`
+workflow is different: manual dispatch, or the organization variable
+`CUDAVERSE_NVIDIA_CI=enabled`, invokes a reusable job on a self-hosted runner
+labelled `cuda`.
+
+That job:
+
+- sets `CUDAVERSE_REQUIRE_CUDA=true`;
+- requires `nvidia-smi` to succeed;
+- requires torch to report at least one CUDA device;
+- runs required CPU/CUDA parity and provenance checks.
+
+A missing CUDA runtime fails the hardware job. It is never converted into a
+successful skip.

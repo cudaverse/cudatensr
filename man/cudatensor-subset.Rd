@@ -17,7 +17,7 @@
 
 \item{drop}{Whether dimensions of length one are dropped.}
 
-\item{value}{Finite numeric replacement values or another \code{cudatensor}.}
+\item{value}{Numeric replacement values or another \code{cudatensor}.}
 }
 \value{
 A \code{cudatensor} on the same device as \code{x}.

@@ -87,6 +87,23 @@ if (cuda_available()) {
 a usable CUDA backend; otherwise it selects the base R CPU backend. The object
 always reports its actual device and backend through `tensor_device()`.
 
+Use `cuda_diagnostics()` to inspect the runtime and `cuda_provenance()` to see
+what each operation actually did. The
+[backend and provenance tutorial](https://cudaverse.github.io/cudatensr/articles/backend-provenance.html)
+contains a complete CPU example, an optional CUDA example, transfer and memory
+guidance, and the NVIDIA hardware-test contract.
+
+| Request | Actual construction backend | Output device | Fallback |
+|---|---|---|---|
+| `"cpu"` | CPU / base R | CPU | No |
+| `"auto"` with usable CUDA | CUDA / torch | CUDA | No |
+| `"auto"` without usable CUDA | CPU / base R | CPU | Yes, recorded with the reason |
+| `"cuda"` | CUDA / torch, or a strict error | CUDA when successful | Never silently |
+
+This table describes tensor construction. Later operations can contain several
+stages, so the `device` used for computation can differ from the
+`output_device` holding the result. The provenance table is authoritative.
+
 Printing tensors with more than 100 values shows metadata without copying a
 large CUDA allocation back to R. Use `to_cpu(x)` when you intentionally want
 the complete base R array, or change the display threshold with
