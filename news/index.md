@@ -48,4 +48,4 @@
 - Added explicit mixed-dtype promotion. Integer arithmetic, reductions,
   and matrix products now promote safely instead of truncating fractions
   or silently overflowing to `NA`.
-- Lossy explicit conversion to integer dtype now fails clearly.
+- Explicit lossy conversion to integer dtype now fails clearly.

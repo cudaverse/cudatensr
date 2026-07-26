@@ -206,7 +206,7 @@ Portable examples and ordinary R CMD check jobs use CPU and may guard
 optional CUDA code with `if (cuda_available())`. The repository’s
 `cuda-parity` workflow is different: manual dispatch, or the
 organization variable `CUDAVERSE_NVIDIA_CI=enabled`, invokes a reusable
-job on a self-hosted runner labelled `cuda`.
+job on a self-hosted runner labeled `cuda`.
 
 That job:
 
