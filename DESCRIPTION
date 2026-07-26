@@ -14,6 +14,7 @@ URL: https://cudaverse.github.io/cudatensr/,
     https://github.com/cudaverse/cudatensr
 BugReports: https://github.com/cudaverse/cudatensr/issues
 Encoding: UTF-8
+Language: en-US
 Roxygen: list(markdown = TRUE)
 Suggests:
     knitr,
