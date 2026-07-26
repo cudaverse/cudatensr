@@ -31,6 +31,15 @@ jobs:
           needs: check
           dependencies: '"all"'
 
+      - name: Install the CRAN manual indexer
+        shell: Rscript {0}
+        run: |
+          if (!nzchar(Sys.which("makeindex"))) {
+            tinytex::tlmgr_install("makeindex")
+            tinytex::tlmgr_path("add")
+          }
+          stopifnot(nzchar(Sys.which("makeindex")))
+
       - name: Install the HTML manual validator
         shell: bash
         run: |
