@@ -24,6 +24,27 @@ test_that("device diagnostics and explicit CPU selection are structured", {
   expect_null(selection$diagnostics)
 })
 
+test_that("cuda_provenance is the canonical generic with a stable default", {
+  expect_true(utils::isS3stdGeneric(cuda_provenance))
+  expect_identical(names(formals(cuda_provenance)), "x")
+
+  stages <- list(
+    computation = cuda_stage(
+      requested_device = "cpu",
+      device = "cpu",
+      backend = "base",
+      selection_reason = "explicit_cpu",
+      fallback = FALSE,
+      output_device = "cpu"
+    )
+  )
+
+  expect_identical(
+    cuda_provenance(stages),
+    cuda_provenance.default(stages)
+  )
+})
+
 test_that("device-count probe errors make CUDA unavailable", {
   testthat::local_mocked_bindings(
     .cuda_torch_installed = function() TRUE,

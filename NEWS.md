@@ -1,5 +1,9 @@
 # cudatensr 0.2.0
 
+- `cuda_provenance()` is now the canonical cudaverse S3 generic. Its default
+  method preserves the existing stage inspection and validation behavior while
+  allowing extension packages to register container-specific methods without
+  load-order-dependent wrappers.
 - Added `cuda_diagnostics()` and strict, classed device selection through
   `cuda_select_device()`. Automatic CPU selection now records why CUDA was not
   selected; an explicit CUDA request never silently falls back.

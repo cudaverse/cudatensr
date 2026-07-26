@@ -2,9 +2,12 @@
 % Please edit documentation in R/provenance.R
 \name{cuda_provenance}
 \alias{cuda_provenance}
+\alias{cuda_provenance.default}
 \title{Inspect actual compute provenance}
 \usage{
 cuda_provenance(x)
+
+\method{cuda_provenance}{default}(x)
 }
 \arguments{
 \item{x}{A cudaverse result or a named list of \code{cuda_stage} records.}
@@ -19,6 +22,11 @@ the contract version and aggregate actual compute device.
 Returns one row per computation stage. The table prevents an \code{"auto"}
 request, a CUDA-aware kernel, or a hybrid pipeline from being mistaken for
 end-to-end GPU execution.
+}
+\details{
+\code{cuda_provenance()} is the canonical cudaverse S3 generic. Extension
+packages can register methods for container classes while ordinary
+cudaverse results continue through the default method.
 }
 \examples{
 x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu")

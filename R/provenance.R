@@ -420,6 +420,10 @@ cuda_stage <- function(requested_device, device, backend, selection_reason,
 #' request, a CUDA-aware kernel, or a hybrid pipeline from being mistaken for
 #' end-to-end GPU execution.
 #'
+#' `cuda_provenance()` is the canonical cudaverse S3 generic. Extension
+#' packages can register methods for container classes while ordinary
+#' cudaverse results continue through the default method.
+#'
 #' @param x A cudaverse result or a named list of `cuda_stage` records.
 #' @return A `cuda_provenance` data frame with columns `stage`,
 #'   `requested_device`, `device`, `backend`, `selection_reason`, `fallback`,
@@ -430,6 +434,12 @@ cuda_stage <- function(requested_device, device, backend, selection_reason,
 #' x <- cuda_tensor(matrix(1:6, 2, 3), device = "cpu")
 #' cuda_provenance(x)
 cuda_provenance <- function(x) {
+  UseMethod("cuda_provenance")
+}
+
+#' @rdname cuda_provenance
+#' @export
+cuda_provenance.default <- function(x) {
   .validate_provenance_schema(x)
   bare_stages <- is.list(x) && length(x) &&
       !is.null(names(x)) &&
