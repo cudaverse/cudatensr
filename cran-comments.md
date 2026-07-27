@@ -29,10 +29,11 @@ The local Windows check used the source tarball produced by `R CMD build` and
 hardware-only transfer test was skipped while the CPU backend and unavailable
 CUDA diagnostics were exercised. PDF and HTML reference-manual checks passed.
 
-The manually dispatched `cran-readiness` workflow also builds the source
-tarball with R-devel, checks spelling and URLs, runs a full CRAN-style check
-including the reference manual, and publishes only the resulting candidate and
-check log as workflow artifacts.
+The manually dispatched `cran-readiness` workflow checks spelling and URLs,
+builds one source tarball with the current R release, records its SHA-256, and
+hands that exact tarball to a separate R-devel job. The R-devel job runs a full
+CRAN-style check including the reference manual and retains the candidate,
+source provenance, manual, and check logs together.
 
 ## Downstream dependencies
 
