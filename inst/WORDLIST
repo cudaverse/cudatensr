@@ -1,6 +1,7 @@
 CMD
 CUDA
 NumPy
+SHA
 cudaverse
 dtype
 dtypes
