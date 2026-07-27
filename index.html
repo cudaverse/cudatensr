@@ -75,7 +75,7 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"cudaverse/cudatensr"</span><span class="op">)</span></span></code></pre></div>
-<p>Before a CRAN submission, maintainers run the manual <code>cran-readiness</code> workflow at the exact candidate commit. It checks spelling and URLs, builds one source tarball with R-devel, runs the full CRAN-style check including the reference manual, and retains that exact tarball with its check log. CRAN acceptance is never inferred from an ordinary GitHub check.</p>
+<p>Before a CRAN submission, maintainers run the manual <code>cran-readiness</code> workflow at the exact candidate commit. It checks spelling and URLs, builds one source tarball with the current R release, records its SHA-256, then checks that exact tarball with R-devel, including the reference manual. The candidate and its check evidence are retained together. CRAN acceptance is never inferred from an ordinary GitHub check.</p>
 </div>
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>

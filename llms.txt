@@ -34,9 +34,10 @@ pak::pak("cudaverse/cudatensr")
 
 Before a CRAN submission, maintainers run the manual `cran-readiness`
 workflow at the exact candidate commit. It checks spelling and URLs,
-builds one source tarball with R-devel, runs the full CRAN-style check
-including the reference manual, and retains that exact tarball with its
-check log. CRAN acceptance is never inferred from an ordinary GitHub
+builds one source tarball with the current R release, records its
+SHA-256, then checks that exact tarball with R-devel, including the
+reference manual. The candidate and its check evidence are retained
+together. CRAN acceptance is never inferred from an ordinary GitHub
 check.
 
 ## Example
