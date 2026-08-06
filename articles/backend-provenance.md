@@ -1,6 +1,6 @@
 # Backend selection and compute provenance
 
-`cudatensr` separates four questions that are easy to conflate:
+`cudaverse` separates four questions that are easy to conflate:
 
 1.  What device did the caller request?
 2.  Where did each stage actually compute?
@@ -14,15 +14,14 @@ only runs when a usable CUDA-enabled torch installation is visible.
 ## Inspect the runtime
 
 ``` r
-
-library(cudatensr)
+library(cudaverse)
 
 diagnostics <- cuda_diagnostics()
 diagnostics
-#> <cuda_diagnostics available=FALSE devices=0 torch=0.17.0 reason=backend_error>
+#> <cuda_diagnostics available=TRUE devices=1 torch=0.17.0.9000 reason=cuda_available>
 ```
 
-[`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
+[`cuda_diagnostics()`](https://cudaverse.github.io/cudaverse/reference/cuda_diagnostics.md)
 is non-destructive: it does not install torch or download a runtime.
 Important fields are `torch_installed`, `torch_version`,
 `cuda_available`, `cuda_device_count`, `reason`, and `detection_error`.
@@ -47,7 +46,6 @@ Use `device = "cpu"` when reproducible portable execution matters more
 than automatic hardware selection.
 
 ``` r
-
 left_source <- matrix(
   1:6,
   nrow = 2,
@@ -82,7 +80,6 @@ to_cpu(product)
 Every returned `cudatensor` records the actual stage:
 
 ``` r
-
 construction_provenance <- cuda_provenance(left)
 construction_provenance
 #> <cuda_provenance schema=cudaverse-stage/1 stages=1 compute=cpu>
@@ -125,14 +122,13 @@ report a usable device; otherwise it returns a CPU tensor and records
 the fallback.
 
 ``` r
-
 automatic <- cuda_tensor(matrix(1:4, 2), device = "auto")
 cuda_provenance(automatic)
-#> <cuda_provenance schema=cudaverse-stage/1 stages=1 compute=cpu>
+#> <cuda_provenance schema=cudaverse-stage/1 stages=1 compute=cuda>
 #>                   stage requested_device device backend selection_reason
-#>  tensor_materialization             auto    cpu    base    backend_error
+#>  tensor_materialization             auto   cuda   torch   cuda_available
 #>  fallback output_device
-#>      TRUE           cpu
+#>     FALSE          cuda
 ```
 
 This makes an automatic CPU result distinguishable from an explicit CPU
@@ -142,7 +138,6 @@ rather than `"auto"`.
 ## Optional CUDA path
 
 ``` r
-
 if (cuda_available()) {
   gpu <- cuda_tensor(left_source, device = "cuda", dtype = "float64")
   gpu_result <- tensor_sum(gpu, dim = 1)
@@ -155,6 +150,15 @@ if (cuda_available()) {
   gpu_subset <- gpu[1, , drop = FALSE]
   cuda_provenance(gpu_subset)
 }
+#> <cuda_provenance schema=cudaverse-stage/1 stages=3 compute=hybrid>
+#>            stage requested_device device backend selection_reason fallback
+#>  materialization        inherited    cpu    base   input_transfer    FALSE
+#>           subset        inherited    cpu    base inherited_device    FALSE
+#>           upload             cuda   cuda   torch  output_transfer    FALSE
+#>  output_device
+#>            cpu
+#>            cpu
+#>           cuda
 ```
 
 The guard keeps this installed vignette runnable on machines without
@@ -162,10 +166,10 @@ NVIDIA hardware. It is not evidence that the CUDA path was tested.
 
 ## Dense memory and transfer limits
 
-`cudatensr` uses dense storage. The payload alone is approximately
-`prod(shape) * bytes_per_value`, before outputs and temporary tensors.
-The CPU fallback uses ordinary R vectors, so its physical storage
-differs from torch:
+Dense `cudaverse` tensors use dense storage. The payload alone is
+approximately `prod(shape) * bytes_per_value`, before outputs and
+temporary tensors. The CPU fallback uses ordinary R vectors, so its
+physical storage differs from torch:
 
 | dtype     | CPU base storage | CUDA torch storage |
 |-----------|-----------------:|-------------------:|
@@ -183,7 +187,7 @@ represented exactly.
 
 Creating a CUDA tensor from an R object transfers the dense input from
 host memory to GPU memory.
-[`to_cpu()`](https://cudaverse.github.io/cudatensr/reference/to_cpu.md),
+[`to_cpu()`](https://cudaverse.github.io/cudaverse/reference/to_cpu.md),
 [`as.array()`](https://rdrr.io/r/base/array.html), and
 [`as.matrix()`](https://rdrr.io/r/base/matrix.html) materialize the
 complete result in host memory. Mixed-device binary operations move the
@@ -197,7 +201,7 @@ allocations at once. The package does not currently provide out-of-core
 execution or automatic chunking. Printing a tensor with more than 100
 values shows metadata without copying the full CUDA allocation;
 explicitly call
-[`to_cpu()`](https://cudaverse.github.io/cudatensr/reference/to_cpu.md)
+[`to_cpu()`](https://cudaverse.github.io/cudaverse/reference/to_cpu.md)
 only when that transfer is intended.
 
 ## Hardware-gated validation

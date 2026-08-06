@@ -1,194 +1,190 @@
-# cudatensr
+# cudaverse
 
-`cudatensr` is the dense array foundation of the **cudaverse**: an
-experimental GPU-accelerated data science and omics ecosystem designed
-around R objects and R package conventions.
+`cudaverse` gives R users one package for GPU-aware numerical workflows.
+It combines the former `cudatensr`, `cudasparsr`, `cudalearnr`,
+`cudagraphR`, and `cudaembedr` projects behind a single installation and
+documentation site.
 
-## Current capabilities
+The public API is organized by topic rather than by package:
 
-- Explicit `cpu`, `cuda`, and `auto` device selection.
-- Dense vectors, matrices, and arrays through a `cudatensor` S3 class.
-- CPU/GPU transfer.
-- Natural element-wise arithmetic with safe dtype promotion.
-- Matrix multiplication.
-- Sum and mean reductions over one-based R dimensions.
-- NumPy-style trailing-dimension broadcasting.
-- Standard R subsetting and replacement, reshape, transpose, and matrix
-  conversion.
-- Preservation of matrix and array dimension labels across CPU/CUDA
-  transfer, arithmetic, compatible broadcasting, reductions, transpose,
-  and matrix multiplication.
-- Portable base R backend for development and CI.
-- Optional CUDA execution through a CUDA-enabled `torch` installation.
+- device selection and compute provenance;
+- dense tensors and sparse matrices;
+- SVD, PCA, distances, k-nearest neighbours, and k-means;
+- weighted kNN graphs, Louvain, and Leiden clustering;
+- UMAP, t-SNE, and diffusion-map-style embeddings.
+
+CUDA is optional. When a supported CUDA-enabled `torch` installation is
+not available, functions use their documented portable backend and
+record what actually ran.
+
+## Lightweight native CUDA direction
+
+Version 0.1.0 uses `torch` only as an optional CUDA backend; it is not a
+hard package dependency. The next backend milestone is a lightweight
+native CUDA implementation behind the same public R API. Its intended
+benefits are:
+
+- avoid requiring the full LibTorch installation, which occupied 6.86 GB
+  in our Windows RTX 2000 development environment;
+- remove coupling to changes in torch’s R indexing, reshape semantics,
+  and release cycle;
+- keep PCA, distance calculation, and top-k selection resident on the
+  GPU instead of repeatedly transferring intermediate results;
+- control `cudatensor` and `cudasparse` memory layout, lifetime, and
+  compute provenance directly; and
+- allow future backends to be added without changing user code.
+
+These are roadmap goals, not performance or installation-size claims
+about the current release. They will become release claims only after
+reproducible parity, disk-footprint, and performance benchmarks pass.
+See the [native CUDA
+roadmap](https://cudaverse.github.io/cudaverse/NATIVE-CUDA-ROADMAP.md)
+for the architecture and acceptance criteria.
 
 ## Installation
 
-`cudatensr` is not yet on CRAN. Install the current development release
-from GitHub:
+During development, install from GitHub:
 
 ``` r
-
 # install.packages("pak")
-pak::pak("cudaverse/cudatensr")
+pak::pak("cudaverse/cudaverse")
 ```
 
-Before a CRAN submission, maintainers run the manual `cran-readiness`
-workflow at the exact candidate commit. It checks spelling and URLs,
-builds one source tarball with the current R release, records its
-SHA-256, then checks that exact tarball with R-devel, including the
-reference manual. The candidate and its check evidence are retained
-together. CRAN acceptance is never inferred from an ordinary GitHub
-check.
-
-## Example
+## One workflow, one package
 
 ``` r
+library(cudaverse)
 
-library(cudatensr)
+x <- matrix(rnorm(400), nrow = 40)
+pca <- cuda_pca(x, n_components = 5)
+neighbors <- cuda_knn(pca$x, k = 5)
+graph <- cuda_knn_graph(neighbors)
+embedding <- cuda_umap(pca$x)
 
-x <- cuda_tensor(matrix(1:6, 2, 3))
-y <- cuda_tensor(matrix(1:6, 3, 2))
-
-tensor_device(x)
-to_cpu(tensor_matmul(x, y))
-to_cpu(x + 0.5)
-to_cpu(tensor_mean(x, dim = 1))
-
-reshaped <- tensor_reshape(cuda_tensor(1:12), c(3, 4))
-reshaped[1:2, 2:4, drop = FALSE]
-t(reshaped)
+cuda_provenance(pca)
+embedding_coordinates(embedding)
 ```
 
-Named R matrices keep their identifiers:
+Single-cell-specific workflows live in the separate `cudacellr`
+extension so general users do not need the SingleCellExperiment or
+Seurat ecosystems.
 
-``` r
+## Project history
 
-named_matrix <- matrix(
-  1:6,
-  nrow = 2,
-  dimnames = list(
-    sample = c("sample_a", "sample_b"),
-    feature = c("gene_a", "gene_b", "gene_c")
-  )
-)
-
-tensor <- cuda_tensor(named_matrix)
-dimnames(to_cpu(tensor))
-```
-
-Element-wise operations require labels on corresponding non-broadcast
-dimensions to agree. Matrix multiplication similarly checks labels on
-the contracted dimensions, then carries row labels from the left operand
-and column labels from the right operand into the result.
-
-Subsetting always returns a `cudatensor`, including a single selected
-value. Replacement preserves the original dtype, so assigning a
-fractional value to an integer tensor fails instead of silently
-truncating it. In the current release, subsetting a CUDA tensor uses a
-CPU round trip; matrix arithmetic, broadcasting, reductions, reshape,
-and transpose remain device-native.
-
-Use `device = "cuda"` to require GPU execution:
-
-``` r
-
-if (cuda_available()) {
-  x_gpu <- cuda_tensor(matrix(rnorm(1e6), 1000), device = "cuda")
-}
-```
-
-## Honest backend semantics
-
-`device = "auto"` selects CUDA only when the optional `torch` package
-reports a usable CUDA backend; otherwise it selects the base R CPU
-backend. The object always reports its actual device and backend through
-[`tensor_device()`](https://cudaverse.github.io/cudatensr/reference/tensor_device.md).
-
-Use
-[`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
-to inspect the runtime and
-[`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
-to see what each operation actually did. The [backend and provenance
-tutorial](https://cudaverse.github.io/cudatensr/articles/backend-provenance.html)
-contains a complete CPU example, an optional CUDA example, transfer and
-memory guidance, and the NVIDIA hardware-test contract.
-
-| Request | Actual construction backend | Output device | Fallback |
-|----|----|----|----|
-| `"cpu"` | CPU / base R | CPU | No |
-| `"auto"` with usable CUDA | CUDA / torch | CUDA | No |
-| `"auto"` without usable CUDA | CPU / base R | CPU | Yes, recorded with the reason |
-| `"cuda"` | CUDA / torch, or a strict error | CUDA when successful | Never silently |
-
-This table describes tensor construction. Later operations can contain
-several stages, so the `device` used for computation can differ from the
-`output_device` holding the result. The provenance table is
-authoritative.
-
-Printing tensors with more than 100 values shows metadata without
-copying a large CUDA allocation back to R. Use `to_cpu(x)` when you
-intentionally want the complete base R array, or change the display
-threshold with `options(cudatensr.max_print = 500)`.
-
-This initial release is an API and correctness milestone, not yet a
-claim of speedups for every workload.
-
-For installation, device verification, memory advice, and common
-failures, see the cudaverse [GPU setup and troubleshooting
-guide](https://github.com/cudaverse/.github/blob/main/GPU_SETUP.md).
-
-## License
-
-MIT © Yaoxiang Li
+The original component repositories remain available as archived
+development history. New features, bug reports, documentation, and
+releases for the general-purpose API belong in this repository.
 
 # Package index
 
-## Create, inspect, and move tensors
+## Device and provenance
 
-- [`cuda_tensor()`](https://cudaverse.github.io/cudatensr/reference/cuda_tensor.md)
-  : Create a GPU-aware tensor
-- [`cuda_available()`](https://cudaverse.github.io/cudatensr/reference/cuda_available.md)
+- [`cuda_available()`](https://cudaverse.github.io/cudaverse/reference/cuda_available.md)
   : Detect a usable CUDA backend
-- [`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
+- [`cuda_diagnostics()`](https://cudaverse.github.io/cudaverse/reference/cuda_diagnostics.md)
   : Diagnose the optional CUDA runtime
-- [`cuda_select_device()`](https://cudaverse.github.io/cudatensr/reference/cuda_select_device.md)
+- [`cuda_select_device()`](https://cudaverse.github.io/cudaverse/reference/cuda_select_device.md)
   : Select a computation device without hiding fallback
-- [`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
-  : Inspect actual compute provenance
-- [`cuda_stage()`](https://cudaverse.github.io/cudatensr/reference/cuda_stage.md)
+- [`cuda_stage()`](https://cudaverse.github.io/cudaverse/reference/cuda_stage.md)
   : Record one compute stage
-- [`tensor_shape()`](https://cudaverse.github.io/cudatensr/reference/tensor_shape.md)
-  : Inspect tensor shape
-- [`dimnames(`*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/dimnames.cudatensor.md)
+- [`cuda_provenance()`](https://cudaverse.github.io/cudaverse/reference/cuda_provenance.md)
+  : Inspect actual compute provenance
+
+## Dense tensors
+
+- [`cuda_tensor()`](https://cudaverse.github.io/cudaverse/reference/cuda_tensor.md)
+  : Create a GPU-aware tensor
+- [`Ops(`*`<cudatensor>`*`)`](https://cudaverse.github.io/cudaverse/reference/cudatensor-operators.md)
+  [`` `%*%`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudaverse/reference/cudatensor-operators.md)
+  : Arithmetic operators for GPU-aware tensors
+- [`` `[`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudaverse/reference/cudatensor-subset.md)
+  [`` `[<-`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudaverse/reference/cudatensor-subset.md)
+  : Subset and replace tensor values
+- [`dimnames(`*`<cudatensor>`*`)`](https://cudaverse.github.io/cudaverse/reference/dimnames.cudatensor.md)
   : Inspect tensor dimension labels
-- [`tensor_device()`](https://cudaverse.github.io/cudatensr/reference/tensor_device.md)
+- [`tensor_broadcast_to()`](https://cudaverse.github.io/cudaverse/reference/tensor_broadcast_to.md)
+  : Broadcast a tensor to a compatible shape
+- [`tensor_device()`](https://cudaverse.github.io/cudaverse/reference/tensor_device.md)
   : Inspect tensor device and backend
-- [`to_cpu()`](https://cudaverse.github.io/cudatensr/reference/to_cpu.md)
+- [`tensor_matmul()`](https://cudaverse.github.io/cudaverse/reference/tensor_matmul.md)
+  : Matrix multiplication for tensors
+- [`tensor_reshape()`](https://cudaverse.github.io/cudaverse/reference/tensor_reshape.md)
+  : Reshape a tensor without changing its values
+- [`tensor_shape()`](https://cudaverse.github.io/cudaverse/reference/tensor_shape.md)
+  : Inspect tensor shape
+- [`tensor_sum()`](https://cudaverse.github.io/cudaverse/reference/tensor_sum.md)
+  [`tensor_mean()`](https://cudaverse.github.io/cudaverse/reference/tensor_sum.md)
+  : Tensor reductions
+- [`to_cpu()`](https://cudaverse.github.io/cudaverse/reference/to_cpu.md)
   : Transfer tensor data to base R
-- [`to_device()`](https://cudaverse.github.io/cudatensr/reference/to_device.md)
+- [`to_device()`](https://cudaverse.github.io/cudaverse/reference/to_device.md)
   : Transfer a tensor to a device
 
-## Transform and compute
+## Sparse matrices
 
-- [`Ops(`*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/cudatensor-operators.md)
-  [`` `%*%`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/cudatensor-operators.md)
-  : Arithmetic operators for GPU-aware tensors
-- [`` `[`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/cudatensor-subset.md)
-  [`` `[<-`( ``*`<cudatensor>`*`)`](https://cudaverse.github.io/cudatensr/reference/cudatensor-subset.md)
-  : Subset and replace tensor values
-- [`tensor_reshape()`](https://cudaverse.github.io/cudatensr/reference/tensor_reshape.md)
-  : Reshape a tensor without changing its values
-- [`tensor_broadcast_to()`](https://cudaverse.github.io/cudatensr/reference/tensor_broadcast_to.md)
-  : Broadcast a tensor to a compatible shape
-- [`tensor_matmul()`](https://cudaverse.github.io/cudatensr/reference/tensor_matmul.md)
-  : Matrix multiplication for tensors
-- [`tensor_sum()`](https://cudaverse.github.io/cudatensr/reference/tensor_sum.md)
-  [`tensor_mean()`](https://cudaverse.github.io/cudatensr/reference/tensor_sum.md)
-  : Tensor reductions
+- [`cuda_sparse()`](https://cudaverse.github.io/cudaverse/reference/cuda_sparse.md)
+  : Create a GPU-aware sparse matrix
+- [`as_coo()`](https://cudaverse.github.io/cudaverse/reference/as_coo.md)
+  [`as_csr()`](https://cudaverse.github.io/cudaverse/reference/as_coo.md)
+  : Convert sparse storage format
+- [`dimnames(`*`<cudasparse>`*`)`](https://cudaverse.github.io/cudaverse/reference/dimnames.cudasparse.md)
+  : Inspect sparse matrix dimension labels
+- [`to_dgCMatrix()`](https://cudaverse.github.io/cudaverse/reference/to_dgCMatrix.md)
+  : Convert to an R sparse matrix
+- [`sparse_info()`](https://cudaverse.github.io/cudaverse/reference/sparse_info.md)
+  : Inspect sparse matrix metadata
+- [`sparse_matmul_dense()`](https://cudaverse.github.io/cudaverse/reference/sparse_matmul_dense.md)
+  : Sparse matrix by dense matrix multiplication
+- [`sparse_matvec()`](https://cudaverse.github.io/cudaverse/reference/sparse_matvec.md)
+  : Sparse matrix-vector multiplication
+- [`sparse_row_sums()`](https://cudaverse.github.io/cudaverse/reference/sparse_row_sums.md)
+  [`sparse_col_sums()`](https://cudaverse.github.io/cudaverse/reference/sparse_row_sums.md)
+  : Sparse row and column reductions
+
+## Numerical algorithms
+
+- [`cuda_svd()`](https://cudaverse.github.io/cudaverse/reference/cuda_svd.md)
+  : GPU-aware singular value decomposition
+- [`cuda_pca()`](https://cudaverse.github.io/cudaverse/reference/cuda_pca.md)
+  : GPU-aware principal component analysis
+- [`cuda_distance()`](https://cudaverse.github.io/cudaverse/reference/cuda_distance.md)
+  : Pairwise distances with an optional CUDA backend
+- [`cuda_knn()`](https://cudaverse.github.io/cudaverse/reference/cuda_knn.md)
+  : k-nearest neighbours
+- [`cuda_kmeans()`](https://cudaverse.github.io/cudaverse/reference/cuda_kmeans.md)
+  : GPU-aware k-means clustering
+- [`predict(`*`<cuda_pca>`*`)`](https://cudaverse.github.io/cudaverse/reference/predict.cuda_pca.md)
+  : Project observations with a fitted CUDA-aware PCA model
+- [`predict(`*`<cuda_kmeans>`*`)`](https://cudaverse.github.io/cudaverse/reference/predict.cuda_kmeans.md)
+  : Assign observations with a fitted CUDA-aware k-means model
+
+## Graph workflows
+
+- [`cuda_knn_graph()`](https://cudaverse.github.io/cudaverse/reference/cuda_knn_graph.md)
+  : Build a sparse graph from nearest neighbours
+- [`as_adjacency_matrix()`](https://cudaverse.github.io/cudaverse/reference/as_adjacency_matrix.md)
+  : Extract a graph adjacency matrix
+- [`cuda_louvain()`](https://cudaverse.github.io/cudaverse/reference/cuda_louvain.md)
+  : Cluster a graph with Louvain
+- [`cuda_leiden()`](https://cudaverse.github.io/cudaverse/reference/cuda_leiden.md)
+  : Cluster a graph with Leiden
+
+## Embeddings
+
+- [`cuda_umap()`](https://cudaverse.github.io/cudaverse/reference/cuda_umap.md)
+  : UMAP embedding
+- [`cuda_tsne()`](https://cudaverse.github.io/cudaverse/reference/cuda_tsne.md)
+  : t-SNE embedding
+- [`cuda_diffusion_map()`](https://cudaverse.github.io/cudaverse/reference/cuda_diffusion_map.md)
+  : Diffusion-map-style embedding
+- [`embedding_coordinates()`](https://cudaverse.github.io/cudaverse/reference/embedding_coordinates.md)
+  : Extract embedding coordinates
 
 # Articles
 
-### Guides
+### All vignettes
 
 - [Backend selection and compute
-  provenance](https://cudaverse.github.io/cudatensr/articles/backend-provenance.md):
+  provenance](https://cudaverse.github.io/cudaverse/articles/backend-provenance.md):
+- [Getting started with
+  cudaverse](https://cudaverse.github.io/cudaverse/articles/getting-started.md):

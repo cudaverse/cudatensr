@@ -1,142 +1,76 @@
-# cudatensr
+# cudaverse
 
-`cudatensr` is the dense array foundation of the **cudaverse**: an
-experimental GPU-accelerated data science and omics ecosystem designed
-around R objects and R package conventions.
+`cudaverse` gives R users one package for GPU-aware numerical workflows.
+It combines the former `cudatensr`, `cudasparsr`, `cudalearnr`,
+`cudagraphR`, and `cudaembedr` projects behind a single installation and
+documentation site.
 
-## Current capabilities
+The public API is organized by topic rather than by package:
 
-- Explicit `cpu`, `cuda`, and `auto` device selection.
-- Dense vectors, matrices, and arrays through a `cudatensor` S3 class.
-- CPU/GPU transfer.
-- Natural element-wise arithmetic with safe dtype promotion.
-- Matrix multiplication.
-- Sum and mean reductions over one-based R dimensions.
-- NumPy-style trailing-dimension broadcasting.
-- Standard R subsetting and replacement, reshape, transpose, and matrix
-  conversion.
-- Preservation of matrix and array dimension labels across CPU/CUDA
-  transfer, arithmetic, compatible broadcasting, reductions, transpose,
-  and matrix multiplication.
-- Portable base R backend for development and CI.
-- Optional CUDA execution through a CUDA-enabled `torch` installation.
+- device selection and compute provenance;
+- dense tensors and sparse matrices;
+- SVD, PCA, distances, k-nearest neighbours, and k-means;
+- weighted kNN graphs, Louvain, and Leiden clustering;
+- UMAP, t-SNE, and diffusion-map-style embeddings.
+
+CUDA is optional. When a supported CUDA-enabled `torch` installation is
+not available, functions use their documented portable backend and
+record what actually ran.
+
+## Lightweight native CUDA direction
+
+Version 0.1.0 uses `torch` only as an optional CUDA backend; it is not a
+hard package dependency. The next backend milestone is a lightweight
+native CUDA implementation behind the same public R API. Its intended
+benefits are:
+
+- avoid requiring the full LibTorch installation, which occupied 6.86 GB
+  in our Windows RTX 2000 development environment;
+- remove coupling to changes in torch’s R indexing, reshape semantics,
+  and release cycle;
+- keep PCA, distance calculation, and top-k selection resident on the
+  GPU instead of repeatedly transferring intermediate results;
+- control `cudatensor` and `cudasparse` memory layout, lifetime, and
+  compute provenance directly; and
+- allow future backends to be added without changing user code.
+
+These are roadmap goals, not performance or installation-size claims
+about the current release. They will become release claims only after
+reproducible parity, disk-footprint, and performance benchmarks pass.
+See the [native CUDA
+roadmap](https://cudaverse.github.io/cudaverse/NATIVE-CUDA-ROADMAP.md)
+for the architecture and acceptance criteria.
 
 ## Installation
 
-`cudatensr` is not yet on CRAN. Install the current development release
-from GitHub:
+During development, install from GitHub:
 
 ``` r
-
 # install.packages("pak")
-pak::pak("cudaverse/cudatensr")
+pak::pak("cudaverse/cudaverse")
 ```
 
-Before a CRAN submission, maintainers run the manual `cran-readiness`
-workflow at the exact candidate commit. It checks spelling and URLs,
-builds one source tarball with the current R release, records its
-SHA-256, then checks that exact tarball with R-devel, including the
-reference manual. The candidate and its check evidence are retained
-together. CRAN acceptance is never inferred from an ordinary GitHub
-check.
-
-## Example
+## One workflow, one package
 
 ``` r
+library(cudaverse)
 
-library(cudatensr)
+x <- matrix(rnorm(400), nrow = 40)
+pca <- cuda_pca(x, n_components = 5)
+neighbors <- cuda_knn(pca$x, k = 5)
+graph <- cuda_knn_graph(neighbors)
+embedding <- cuda_umap(pca$x)
 
-x <- cuda_tensor(matrix(1:6, 2, 3))
-y <- cuda_tensor(matrix(1:6, 3, 2))
-
-tensor_device(x)
-to_cpu(tensor_matmul(x, y))
-to_cpu(x + 0.5)
-to_cpu(tensor_mean(x, dim = 1))
-
-reshaped <- tensor_reshape(cuda_tensor(1:12), c(3, 4))
-reshaped[1:2, 2:4, drop = FALSE]
-t(reshaped)
+cuda_provenance(pca)
+embedding_coordinates(embedding)
 ```
 
-Named R matrices keep their identifiers:
+Single-cell-specific workflows live in the separate `cudacellr`
+extension so general users do not need the SingleCellExperiment or
+Seurat ecosystems.
 
-``` r
+## Project history
 
-named_matrix <- matrix(
-  1:6,
-  nrow = 2,
-  dimnames = list(
-    sample = c("sample_a", "sample_b"),
-    feature = c("gene_a", "gene_b", "gene_c")
-  )
-)
-
-tensor <- cuda_tensor(named_matrix)
-dimnames(to_cpu(tensor))
-```
-
-Element-wise operations require labels on corresponding non-broadcast
-dimensions to agree. Matrix multiplication similarly checks labels on
-the contracted dimensions, then carries row labels from the left operand
-and column labels from the right operand into the result.
-
-Subsetting always returns a `cudatensor`, including a single selected
-value. Replacement preserves the original dtype, so assigning a
-fractional value to an integer tensor fails instead of silently
-truncating it. In the current release, subsetting a CUDA tensor uses a
-CPU round trip; matrix arithmetic, broadcasting, reductions, reshape,
-and transpose remain device-native.
-
-Use `device = "cuda"` to require GPU execution:
-
-``` r
-
-if (cuda_available()) {
-  x_gpu <- cuda_tensor(matrix(rnorm(1e6), 1000), device = "cuda")
-}
-```
-
-## Honest backend semantics
-
-`device = "auto"` selects CUDA only when the optional `torch` package
-reports a usable CUDA backend; otherwise it selects the base R CPU
-backend. The object always reports its actual device and backend through
-[`tensor_device()`](https://cudaverse.github.io/cudatensr/reference/tensor_device.md).
-
-Use
-[`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
-to inspect the runtime and
-[`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
-to see what each operation actually did. The [backend and provenance
-tutorial](https://cudaverse.github.io/cudatensr/articles/backend-provenance.html)
-contains a complete CPU example, an optional CUDA example, transfer and
-memory guidance, and the NVIDIA hardware-test contract.
-
-| Request | Actual construction backend | Output device | Fallback |
-|----|----|----|----|
-| `"cpu"` | CPU / base R | CPU | No |
-| `"auto"` with usable CUDA | CUDA / torch | CUDA | No |
-| `"auto"` without usable CUDA | CPU / base R | CPU | Yes, recorded with the reason |
-| `"cuda"` | CUDA / torch, or a strict error | CUDA when successful | Never silently |
-
-This table describes tensor construction. Later operations can contain
-several stages, so the `device` used for computation can differ from the
-`output_device` holding the result. The provenance table is
-authoritative.
-
-Printing tensors with more than 100 values shows metadata without
-copying a large CUDA allocation back to R. Use `to_cpu(x)` when you
-intentionally want the complete base R array, or change the display
-threshold with `options(cudatensr.max_print = 500)`.
-
-This initial release is an API and correctness milestone, not yet a
-claim of speedups for every workload.
-
-For installation, device verification, memory advice, and common
-failures, see the cudaverse [GPU setup and troubleshooting
-guide](https://github.com/cudaverse/.github/blob/main/GPU_SETUP.md).
-
-## License
-
-MIT © Yaoxiang Li
+The original component repositories remain available as archived
+development history. New features, bug reports, documentation, and
+releases for the general-purpose API belong in this repository.

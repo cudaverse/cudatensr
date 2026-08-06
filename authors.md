@@ -7,15 +7,15 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/cudaverse/cudatensr/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/cudaverse/cudaverse/blob/HEAD/DESCRIPTION)
 
-Li Y (2026). *cudatensr: GPU-Aware Dense Tensors for R*. R package
-version 0.2.0, <https://cudaverse.github.io/cudatensr/>.
+Li Y (2026). *cudaverse: GPU-Aware Numerical Computing for R*. R package
+version 0.1.0, <https://cudaverse.github.io/cudaverse/>.
 
     @Manual{,
-      title = {cudatensr: GPU-Aware Dense Tensors for R},
+      title = {cudaverse: GPU-Aware Numerical Computing for R},
       author = {Yaoxiang Li},
       year = {2026},
-      note = {R package version 0.2.0},
-      url = {https://cudaverse.github.io/cudatensr/},
+      note = {R package version 0.1.0},
+      url = {https://cudaverse.github.io/cudaverse/},
     }

@@ -17,5 +17,5 @@ A single logical value.
 
 ``` r
 cuda_available()
-#> [1] FALSE
+#> [1] TRUE
 ```

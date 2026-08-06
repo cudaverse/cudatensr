@@ -1,56 +1,20 @@
 # Changelog
 
-## cudatensr 0.2.0
+## cudaverse 0.1.0
 
-- [`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
-  is now the canonical cudaverse S3 generic. Its default method
-  preserves the existing stage inspection and validation behavior while
-  allowing extension packages to register container-specific methods
-  without load-order-dependent wrappers.
-- Added
-  [`cuda_diagnostics()`](https://cudaverse.github.io/cudatensr/reference/cuda_diagnostics.md)
-  and strict, classed device selection through
-  [`cuda_select_device()`](https://cudaverse.github.io/cudatensr/reference/cuda_select_device.md).
-  Automatic CPU selection now records why CUDA was not selected; an
-  explicit CUDA request never silently falls back.
-- Added the shared `cudaverse-stage/1` provenance contract.
-  [`cuda_stage()`](https://cudaverse.github.io/cudatensr/reference/cuda_stage.md)
-  lets extensions record stages, while
-  [`cuda_provenance()`](https://cudaverse.github.io/cudatensr/reference/cuda_provenance.md)
-  reports requested, actual, backend, fallback, and output-device
-  metadata consistently.
-- Tensor construction and public tensor operations now identify their
-  actual compute stage. CUDA subsetting and replacement report their CPU
-  round trip as hybrid execution.
-- CPU `float32` tensor storage now rounds to IEEE single-precision
-  values instead of retaining unquantized doubles under a float32 label.
-  Base R kernels still accumulate in double precision before rounding
-  their output; CUDA kernels use their native torch dtype.
-- Floating tensors consistently preserve IEEE `Inf`, `-Inf`, and `NaN`
-  values across construction and derived arithmetic. Integer tensors
-  continue to reject values that have no exact integer representation.
-
-## cudatensr 0.1.2
-
-- Matrix and array dimnames are now retained as backend-independent
-  metadata through construction, CPU/CUDA transfer, compatible
-  arithmetic and broadcasting, reductions, transpose, and matrix
-  multiplication. Conflicting labels on paired dimensions fail clearly
-  instead of producing a mislabeled result.
-
-## cudatensr 0.1.1
-
-- Added standard R subsetting and replacement methods,
-  [`tensor_reshape()`](https://cudaverse.github.io/cudatensr/reference/tensor_reshape.md),
-  [`t()`](https://rdrr.io/r/base/t.html), and
-  [`as.matrix()`](https://rdrr.io/r/base/matrix.html) so tensors can be
-  manipulated without reaching into their internal storage.
-- Printing a large tensor now reports its metadata without implicitly
-  materializing the entire object on the CPU. The display threshold is
-  controlled by `options(cudatensr.max_print = 100)`.
-- Added natural element-wise tensor arithmetic and `%*%` dispatch with
-  trailing-dimension broadcasting.
-- Added explicit mixed-dtype promotion. Integer arithmetic, reductions,
-  and matrix products now promote safely instead of truncating fractions
-  or silently overflowing to `NA`.
-- Explicit lossy conversion to integer dtype now fails clearly.
+- Establishes one user-facing package for the general-purpose cudaverse
+  API.
+- Incorporates dense tensor functionality from `cudatensr`.
+- Incorporates sparse matrix functionality from `cudasparsr`.
+- Incorporates numerical algorithms from `cudalearnr`.
+- Incorporates graph workflows from `cudagraphR`.
+- Incorporates embedding workflows from `cudaembedr`.
+- Preserves the canonical
+  [`cuda_provenance()`](https://cudaverse.github.io/cudaverse/reference/cuda_provenance.md)
+  protocol across all modules.
+- Keeps single-cell-specific workflows in the separate `cudacellr`
+  package.
+- Fixes CUDA indexing, R column-major reshape semantics, and exact
+  self-distance diagonals for compatibility with R torch 0.17.
+- Documents the measured, benchmark-gated roadmap toward a lightweight
+  native CUDA backend while retaining the current portable CPU fallback.

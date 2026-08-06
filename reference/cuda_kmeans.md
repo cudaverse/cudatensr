@@ -1,0 +1,62 @@
+# GPU-aware k-means clustering
+
+GPU-aware k-means clustering
+
+## Usage
+
+``` r
+cuda_kmeans(
+  x,
+  centers,
+  iter.max = 100L,
+  tolerance = 1e-06,
+  seed = NULL,
+  device = c("auto", "cuda", "cpu")
+)
+```
+
+## Arguments
+
+- x:
+
+  Numeric matrix with observations in rows.
+
+- centers:
+
+  Number of clusters or a matrix of initial centres.
+
+- iter.max:
+
+  Maximum Lloyd iterations.
+
+- tolerance:
+
+  Convergence tolerance for centre movement.
+
+- seed:
+
+  Optional random seed used for initial centres.
+
+- device:
+
+  Device used for the distance step.
+
+## Value
+
+A `cuda_kmeans` list containing integer `cluster` assignments, final
+`centers`, per-cluster `withinss`, `tot.withinss`, the number of
+iteration count in `iter`, a logical `converged` flag, and the actual
+distance `device`. Observation and feature names are retained when
+supplied.
+
+## Examples
+
+``` r
+set.seed(1)
+x <- rbind(matrix(rnorm(40), 20, 2), matrix(rnorm(40, 4), 20, 2))
+cuda_kmeans(x, centers = 2, seed = 1, device = "cpu")
+#> <cuda_kmeans clusters=2 iterations=2 converged=TRUE distance_device=cpu compute=cpu backend=base>
+#>           [,1]         [,2]
+#> [1,] 0.1905239 -0.006471519
+#> [2,] 4.1387968  4.101736906
+```

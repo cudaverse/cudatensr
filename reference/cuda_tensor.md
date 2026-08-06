@@ -17,7 +17,7 @@ cuda_tensor(x, device = c("auto", "cuda", "cpu"), dtype = NULL)
 - device:
 
   One of `"auto"`, `"cuda"`, or `"cpu"`. Auto selects CUDA only when
-  [`cuda_available()`](https://cudaverse.github.io/cudatensr/reference/cuda_available.md)
+  [`cuda_available()`](https://cudaverse.github.io/cudaverse/reference/cuda_available.md)
   is true.
 
 - dtype:

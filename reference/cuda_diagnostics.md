@@ -19,5 +19,5 @@ A named list containing `torch_installed`, `torch_version`,
 
 ``` r
 cuda_diagnostics()
-#> <cuda_diagnostics available=FALSE devices=0 torch=0.17.0 reason=backend_error>
+#> <cuda_diagnostics available=TRUE devices=1 torch=0.17.0.9000 reason=cuda_available>
 ```
