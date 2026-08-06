@@ -8,3 +8,7 @@
 - Incorporates embedding workflows from `cudaembedr`.
 - Preserves the canonical `cuda_provenance()` protocol across all modules.
 - Keeps single-cell-specific workflows in the separate `cudacellr` package.
+- Fixes CUDA indexing, R column-major reshape semantics, and exact
+  self-distance diagonals for compatibility with R torch 0.17.
+- Documents the measured, benchmark-gated roadmap toward a lightweight native
+  CUDA backend while retaining the current portable CPU fallback.

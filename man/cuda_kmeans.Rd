@@ -29,7 +29,8 @@ cuda_kmeans(
 \value{
 A \code{cuda_kmeans} list containing integer \code{cluster} assignments,
 final \code{centers}, per-cluster \code{withinss}, \code{tot.withinss}, the number of
-\code{iter}ations, a logical \code{converged} flag, and the actual distance \code{device}.
+iteration count in \code{iter}, a logical \code{converged} flag, and the actual
+distance \code{device}.
 Observation and feature names are retained when supplied.
 }
 \description{
