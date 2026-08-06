@@ -14,6 +14,9 @@ reference:
 - title: Dense tensors
   contents:
   - cuda_tensor
+  - cudatensor-operators
+  - cudatensor-subset
+  - dimnames.cudatensor
   - starts_with("tensor_")
   - to_cpu
   - to_device
@@ -22,6 +25,7 @@ reference:
   - cuda_sparse
   - as_coo
   - as_csr
+  - dimnames.cudasparse
   - to_dgCMatrix
   - starts_with("sparse_")
 - title: Numerical algorithms
@@ -31,6 +35,8 @@ reference:
   - cuda_distance
   - cuda_knn
   - cuda_kmeans
+  - predict.cuda_pca
+  - predict.cuda_kmeans
 - title: Graph workflows
   contents:
   - cuda_knn_graph
