@@ -139,7 +139,7 @@
 
 .sparse_torch <- function(i, j, values, shape) {
   indices <- torch::torch_tensor(
-    rbind(i - 1L, j - 1L),
+    rbind(i, j),
     dtype = torch::torch_int64(),
     device = "cuda"
   )
