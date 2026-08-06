@@ -1,4 +1,4 @@
 library(testthat)
-library(cudatensr)
+library(cudaverse)
 
-test_check("cudatensr")
+test_check("cudaverse")

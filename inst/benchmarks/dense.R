@@ -1,4 +1,4 @@
-library(cudatensr)
+library(cudaverse)
 
 set.seed(1)
 x <- matrix(rnorm(1e6), 1000)
@@ -14,4 +14,4 @@ tensor_time <- system.time({
 })
 
 stopifnot(isTRUE(all.equal(base_result, tensor_result, tolerance = 1e-6)))
-print(rbind(base = base_time, cudatensr = tensor_time))
+print(rbind(base = base_time, cudaverse = tensor_time))

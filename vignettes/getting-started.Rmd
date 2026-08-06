@@ -1,0 +1,53 @@
+---
+title: "Getting started with cudaverse"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with cudaverse}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`cudaverse` is a single entry point for dense tensors, sparse matrices,
+numerical algorithms, graphs, and embeddings. CUDA is optional: every result
+records the backend and device that actually performed each stage.
+
+## Dense and sparse data
+
+```{r}
+library(cudaverse)
+
+dense <- cuda_tensor(matrix(1:12, nrow = 4), device = "cpu")
+tensor_shape(dense)
+
+sparse <- cuda_sparse(Matrix::Diagonal(4), device = "cpu")
+sparse_info(sparse)
+```
+
+## Algorithms compose directly
+
+```{r}
+set.seed(1)
+x <- matrix(rnorm(120), nrow = 30)
+
+pca <- cuda_pca(x, n_components = 4, device = "cpu")
+neighbors <- cuda_knn(pca$x, k = 4, device = "cpu")
+graph <- cuda_knn_graph(neighbors)
+
+dim(pca$x)
+dim(as_adjacency_matrix(graph))
+cuda_provenance(pca)
+```
+
+UMAP, t-SNE, Louvain, and Leiden use optional packages. Their functions report
+a clear installation message when the relevant optional backend is missing.
+
+## Single-cell extension
+
+Single-cell normalization, feature selection, and native
+SingleCellExperiment/Seurat mapping remain in `cudacellr`. That package depends
+on `cudaverse`, so a single-cell user installs two packages while a general
+numerical user installs only this one.

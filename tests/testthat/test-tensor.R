@@ -300,7 +300,7 @@ test_that("matrix conversion and large printing are predictable", {
   expect_equal(as.matrix(matrix_tensor), matrix(1:4, 2, 2))
   expect_error(as.matrix(array_tensor), "one- or two-dimensional")
 
-  old_options <- options(cudatensr.max_print = 3)
+  old_options <- options(cudaverse.max_print = 3)
   on.exit(options(old_options), add = TRUE)
   output <- capture.output(print(vector))
   expect_true(any(grepl("values omitted", output)))

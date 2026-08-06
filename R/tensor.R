@@ -1142,7 +1142,7 @@ print.cudatensor <- function(x, ...) {
       x$dtype
     )
   )
-  max_values <- getOption("cudatensr.max_print", 100L)
+  max_values <- getOption("cudaverse.max_print", 100L)
   if (!is.numeric(max_values) || length(max_values) != 1L ||
       is.na(max_values) || !is.finite(max_values) || max_values < 0) {
     max_values <- 100L

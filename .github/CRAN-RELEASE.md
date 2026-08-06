@@ -37,6 +37,6 @@ but it is not by itself a release.
       GitHub release.
 - [ ] Update the cudaverse compatibility table with the accepted version and
       commit.
-- [ ] Only then prepare `cudasparsr` and `cudalearnr` without development
-      `Remotes`; their strong `cudatensr` dependency must resolve from a
-      standard repository.
+- [ ] Only after `cudaverse` is accepted, prepare `cudacellr` without its
+      development `Remotes` entry; the strong `cudaverse` dependency must
+      resolve from a standard repository.
