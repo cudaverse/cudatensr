@@ -1169,7 +1169,8 @@ cuda_knn <- function(x, k = 15L, metric = c("euclidean", "cosine"),
 #' @param device Device used for the distance step.
 #' @return A `cuda_kmeans` list containing integer `cluster` assignments,
 #'   final `centers`, per-cluster `withinss`, `tot.withinss`, the number of
-#'   `iter`ations, a logical `converged` flag, and the actual distance `device`.
+#'   iteration count in `iter`, a logical `converged` flag, and the actual
+#'   distance `device`.
 #'   Observation and feature names are retained when supplied.
 #' @export
 #' @examples

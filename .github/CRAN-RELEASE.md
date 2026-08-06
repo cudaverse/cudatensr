@@ -1,42 +1,34 @@
-# CRAN release checklist
+# CRAN release checklist for cudaverse 0.1.0
 
-This checklist separates a reproducible candidate from the external CRAN
-submission and acceptance steps. A green ordinary package check is necessary,
-but it is not by itself a release.
+This is the first CRAN submission of the consolidated `cudaverse` package.
+Evidence prepared for the former `cudatensr` package is historical context and
+does not validate this candidate.
 
 ## Candidate
 
-- [ ] Confirm that `DESCRIPTION`, `NEWS.md`, public documentation, and examples
-      describe the candidate exactly.
-- [ ] Confirm that the package name conflicts with neither current nor archived
-      CRAN packages nor current Bioconductor packages.
-- [ ] Run the manually dispatched `cran-readiness` workflow at the exact
-      candidate commit.
-- [ ] Require zero errors and warnings from the full R-devel
-      `R CMD check --as-cran`, including reference-manual generation; review
-      every note and allow only the expected `New submission` note.
-- [ ] Review every URL and spelling result rather than suppressing unexpected
-      findings.
-- [ ] Review the uploaded source tarball and `00check.log`; submit that exact
-      tarball without rebuilding it from a different commit.
-- [ ] Check the same tarball with Win-builder R-devel before the first
-      submission.
+- [x] Confirm that `cudaverse` conflicts with neither current nor archived CRAN
+      packages nor current Bioconductor packages.
+- [x] Confirm that `DESCRIPTION`, `NEWS.md`, documentation, examples, and
+      vignettes describe version 0.1.0 exactly.
+- [x] Build a local preflight source tarball and record its SHA-256.
+- [x] Run local `R CMD check --as-cran` on the preflight source tarball:
+      0 errors, 0 warnings, and the expected new-submission note.
+- [ ] Run the GitHub R CMD check matrix on Windows, macOS, Ubuntu release, and
+      Ubuntu R-devel.
+- [ ] Run the manually dispatched `cran-readiness` workflow and retain the exact
+      source candidate, full R-devel check log, and reference manual.
+- [ ] Review spelling and URL checks.
+- [ ] Submit the exact verified source tarball without rebuilding it.
 
 ## Submission
 
-- [ ] Read the current CRAN repository policy and submission checklist.
-- [ ] Upload the exact verified source tarball through the CRAN submission
-      form.
+- [ ] Upload the verified tarball through the CRAN submission form.
 - [ ] Accept the confirmation email sent to the `DESCRIPTION` maintainer.
-- [ ] Do not submit another build while this candidate is pending.
+- [ ] Do not submit another build while the candidate is pending.
 
 ## Acceptance
 
-- [ ] Verify the package and check-results pages on CRAN.
-- [ ] Tag the accepted commit with the published version and create the matching
-      GitHub release.
-- [ ] Update the cudaverse compatibility table with the accepted version and
-      commit.
-- [ ] Only after `cudaverse` is accepted, prepare `cudacellr` without its
-      development `Remotes` entry; the strong `cudaverse` dependency must
-      resolve from a standard repository.
+- [ ] Verify the CRAN package and check-results pages.
+- [ ] Tag the accepted commit as `v0.1.0` and create the matching GitHub release.
+- [ ] Update installation documentation from development installation to CRAN.
+- [ ] Begin the next package submission only after this package is accepted.
