@@ -46,6 +46,7 @@ for the architecture and acceptance criteria.
 During development, install from GitHub:
 
 ``` r
+
 # install.packages("pak")
 pak::pak("cudaverse/cudaverse")
 ```
@@ -53,6 +54,7 @@ pak::pak("cudaverse/cudaverse")
 ## One workflow, one package
 
 ``` r
+
 library(cudaverse)
 
 x <- matrix(rnorm(400), nrow = 40)

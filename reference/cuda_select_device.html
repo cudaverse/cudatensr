@@ -38,7 +38,7 @@ error instead of silently falling back.'></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Select a computation device without hiding fallback</h1>
-      <small class="dont-index">Source: <a href="https://github.com/cudaverse/cudaverse/blob/HEAD/R/provenance.R" class="external-link"><code>R/provenance.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/cudaverse/cudaverse/blob/main/R/provenance.R" class="external-link"><code>R/provenance.R</code></a></small>
       <div class="d-none name"><code>cuda_select_device.Rd</code></div>
     </div>
 
@@ -72,7 +72,7 @@ request, selected device, selection reason, fallback flag, and diagnostics.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">cuda_select_device</span><span class="op">(</span><span class="st">"cpu"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> &lt;cuda_device_selection requested=cpu selected=cpu reason=explicit_cpu fallback=FALSE&gt;</span>
 <span class="r-in"><span><span class="fu">cuda_select_device</span><span class="op">(</span><span class="st">"auto"</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;cuda_device_selection requested=auto selected=cuda reason=cuda_available fallback=FALSE&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;cuda_device_selection requested=auto selected=cpu reason=backend_error fallback=TRUE&gt;</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
@@ -84,7 +84,7 @@ request, selected device, selection reason, fallback flag, and diagnostics.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

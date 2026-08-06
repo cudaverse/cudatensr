@@ -27,5 +27,5 @@ selected device, selection reason, fallback flag, and diagnostics.
 cuda_select_device("cpu")
 #> <cuda_device_selection requested=cpu selected=cpu reason=explicit_cpu fallback=FALSE>
 cuda_select_device("auto")
-#> <cuda_device_selection requested=auto selected=cuda reason=cuda_available fallback=FALSE>
+#> <cuda_device_selection requested=auto selected=cpu reason=backend_error fallback=TRUE>
 ```

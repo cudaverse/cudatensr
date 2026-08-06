@@ -8,6 +8,7 @@ stage.
 ## Dense and sparse data
 
 ``` r
+
 library(cudaverse)
 
 dense <- cuda_tensor(matrix(1:12, nrow = 4), device = "cpu")
@@ -44,6 +45,7 @@ sparse_info(sparse)
 ## Algorithms compose directly
 
 ``` r
+
 set.seed(1)
 x <- matrix(rnorm(120), nrow = 30)
 
