@@ -11,7 +11,7 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 ```
 
-`cudatensr` separates four questions that are easy to conflate:
+`cudaverse` separates four questions that are easy to conflate:
 
 1. What device did the caller request?
 2. Where did each stage actually compute?
@@ -25,7 +25,7 @@ runs when a usable CUDA-enabled torch installation is visible.
 ## Inspect the runtime
 
 ```{r}
-library(cudatensr)
+library(cudaverse)
 
 diagnostics <- cuda_diagnostics()
 diagnostics
@@ -141,7 +141,7 @@ hardware. It is not evidence that the CUDA path was tested.
 
 ## Dense memory and transfer limits
 
-`cudatensr` uses dense storage. The payload alone is approximately
+Dense `cudaverse` tensors use dense storage. The payload alone is approximately
 `prod(shape) * bytes_per_value`, before outputs and temporary tensors. The CPU
 fallback uses ordinary R vectors, so its physical storage differs from torch:
 

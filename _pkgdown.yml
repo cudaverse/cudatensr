@@ -1,32 +1,45 @@
-url: https://cudaverse.github.io/cudatensr/
+url: https://cudaverse.github.io/cudaverse/
 
 template:
   bootstrap: 5
 
-articles:
-- title: Guides
-  contents:
-  - backend-provenance
-
 reference:
-- title: Create, inspect, and move tensors
+- title: Device and provenance
   contents:
-  - cuda_tensor
   - cuda_available
   - cuda_diagnostics
   - cuda_select_device
-  - cuda_provenance
   - cuda_stage
-  - tensor_shape
-  - dimnames.cudatensor
-  - tensor_device
+  - cuda_provenance
+- title: Dense tensors
+  contents:
+  - cuda_tensor
+  - starts_with("tensor_")
   - to_cpu
   - to_device
-- title: Transform and compute
+- title: Sparse matrices
   contents:
-  - cudatensor-operators
-  - cudatensor-subset
-  - tensor_reshape
-  - tensor_broadcast_to
-  - tensor_matmul
-  - tensor_sum
+  - cuda_sparse
+  - as_coo
+  - as_csr
+  - to_dgCMatrix
+  - starts_with("sparse_")
+- title: Numerical algorithms
+  contents:
+  - cuda_svd
+  - cuda_pca
+  - cuda_distance
+  - cuda_knn
+  - cuda_kmeans
+- title: Graph workflows
+  contents:
+  - cuda_knn_graph
+  - as_adjacency_matrix
+  - cuda_louvain
+  - cuda_leiden
+- title: Embeddings
+  contents:
+  - cuda_umap
+  - cuda_tsne
+  - cuda_diffusion_map
+  - embedding_coordinates

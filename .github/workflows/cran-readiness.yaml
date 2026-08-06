@@ -48,19 +48,19 @@ jobs:
         run: |
           mkdir candidate
           R CMD build .
-          mv cudatensr_*.tar.gz candidate/
+          mv cudaverse_*.tar.gz candidate/
           {
             echo "source_sha=${GITHUB_SHA}"
             Rscript -e 'cat("builder=", R.version.string, "\n", sep = "")'
-            sha256sum candidate/cudatensr_*.tar.gz
+            sha256sum candidate/cudaverse_*.tar.gz
           } > candidate/source-provenance.txt
 
       - name: Transfer the exact source candidate
         uses: actions/upload-artifact@v7
         with:
-          name: cudatensr-source-candidate-${{ github.sha }}
+          name: cudaverse-source-candidate-${{ github.sha }}
           path: |
-            candidate/cudatensr_*.tar.gz
+            candidate/cudaverse_*.tar.gz
             candidate/source-provenance.txt
           if-no-files-found: error
           retention-days: 1
@@ -108,14 +108,14 @@ jobs:
       - name: Download the exact source candidate
         uses: actions/download-artifact@v8
         with:
-          name: cudatensr-source-candidate-${{ github.sha }}
+          name: cudaverse-source-candidate-${{ github.sha }}
           path: candidate
 
       - name: Require one source candidate
         shell: bash
         run: |
           mapfile -t candidates < <(find candidate -maxdepth 1 -type f \
-            -name 'cudatensr_*.tar.gz' -print)
+            -name 'cudaverse_*.tar.gz' -print)
           if [ "${#candidates[@]}" -ne 1 ]; then
             printf 'Expected one source candidate, found %s\n' \
               "${#candidates[@]}" >&2
@@ -127,15 +127,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p candidate/source candidate/manual-build
-          tar -xzf candidate/cudatensr_*.tar.gz -C candidate/source
+          tar -xzf candidate/cudaverse_*.tar.gz -C candidate/source
           set +e
           R CMD Rd2pdf \
             --no-clean \
             --no-preview \
             --force \
             --build-dir=candidate/manual-build \
-            --output=candidate/cudatensr-manual.pdf \
-            candidate/source/cudatensr
+            --output=candidate/cudaverse-manual.pdf \
+            candidate/source/cudaverse
           manual_status=$?
           set -e
           if [ "$manual_status" -ne 0 ]; then
@@ -146,28 +146,28 @@ jobs:
               --no-preview \
               --force \
               --build-dir=candidate/manual-build \
-              --output=candidate/cudatensr-manual.pdf \
-              candidate/source/cudatensr
+              --output=candidate/cudaverse-manual.pdf \
+              candidate/source/cudaverse
           fi
 
       - name: Run the full CRAN-style check
         shell: bash
         run: |
-          R CMD check --as-cran candidate/cudatensr_*.tar.gz
+          R CMD check --as-cran candidate/cudaverse_*.tar.gz
 
       - name: Upload the exact candidate and check log
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cudatensr-cran-candidate-${{ github.sha }}
+          name: cudaverse-cran-candidate-${{ github.sha }}
           path: |
-            candidate/cudatensr_*.tar.gz
+            candidate/cudaverse_*.tar.gz
             candidate/source-provenance.txt
-            candidate/cudatensr-manual.pdf
+            candidate/cudaverse-manual.pdf
             candidate/manual-build/**
-            cudatensr.Rcheck/00check.log
-            cudatensr.Rcheck/cudatensr-manual.pdf
-            cudatensr.Rcheck/*.log
-            cudatensr.Rcheck/*.tex
+            cudaverse.Rcheck/00check.log
+            cudaverse.Rcheck/cudaverse-manual.pdf
+            cudaverse.Rcheck/*.log
+            cudaverse.Rcheck/*.tex
           if-no-files-found: warn
           retention-days: 14

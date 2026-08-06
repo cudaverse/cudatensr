@@ -1,26 +1,37 @@
-Package: cudatensr
-Title: GPU-Aware Dense Tensors for R
-Version: 0.2.0
+Package: cudaverse
+Title: GPU-Aware Numerical Computing for R
+Version: 0.1.0
 Authors@R:
     person("Yaoxiang", "Li", email = "liyaoxiang@outlook.com",
            role = c("aut", "cre"))
-Description: Provides an experimental R-native dense tensor abstraction with
-    explicit device management, safe mixed-type arithmetic, matrix
-    multiplication, reductions, and broadcasting. Uses an optional
-    CUDA-enabled 'torch' installation for GPU execution and a transparent base
-    R backend for portable development and continuous integration.
+Description: Provides one coherent interface for experimental GPU-aware
+    numerical computing in R. Includes dense tensors, sparse matrices,
+    decompositions, distances, nearest neighbours, clustering, graph
+    workflows, and embeddings. Uses an optional CUDA-enabled 'torch'
+    installation for GPU execution and portable R backends for development,
+    testing, and reproducible fallback behavior.
 License: MIT + file LICENSE
-URL: https://cudaverse.github.io/cudatensr/,
-    https://github.com/cudaverse/cudatensr
-BugReports: https://github.com/cudaverse/cudatensr/issues
+URL: https://cudaverse.github.io/cudaverse/,
+    https://github.com/cudaverse/cudaverse
+BugReports: https://github.com/cudaverse/cudaverse/issues
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)
+Imports:
+    Matrix,
+    methods,
+    stats
 Suggests:
+    igraph (>= 2.0.0),
     knitr,
     rmarkdown,
+    RSpectra,
+    Rtsne,
+    S4Vectors,
+    SingleCellExperiment,
     testthat (>= 3.0.0),
-    torch
+    torch,
+    uwot
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0
