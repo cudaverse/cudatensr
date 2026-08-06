@@ -927,6 +927,12 @@ cuda_distance <- function(x, y = NULL,
   if (metric == "cosine") {
     distance <- pmin(pmax(distance, 0), 2)
   }
+  if (self) {
+    # GPU distance kernels can leave round-off-sized values on the diagonal.
+    # Self-distance is exactly zero by contract; enforcing it also prevents
+    # downstream bandwidth estimators from treating the diagonal as data.
+    diag(distance) <- 0
+  }
   if (!is.null(x_names) || !is.null(y_names)) {
     dimnames(distance) <- list(x_names, y_names)
   }

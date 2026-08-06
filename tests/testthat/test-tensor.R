@@ -241,6 +241,18 @@ test_that("reshape and transpose preserve tensor metadata and values", {
   expect_error(tensor_reshape(x, c(2, 1.5, 2)), "whole-number")
 })
 
+test_that("CUDA reshape follows R column-major value order", {
+  skip_if_not(cuda_available())
+  source <- matrix(1:12, nrow = 3)
+  gpu <- cuda_tensor(source, device = "cuda", dtype = "float64")
+
+  reshaped <- tensor_reshape(gpu, c(2, 2, 3))
+
+  expect_identical(tensor_device(reshaped),
+                   c(device = "cuda", backend = "torch"))
+  expect_equal(to_cpu(reshaped), array(source, dim = c(2, 2, 3)))
+})
+
 test_that("transpose swaps labels and reshape drops redefined axes", {
   source <- matrix(
     1:6,

@@ -185,6 +185,16 @@ test_that("distance supports Euclidean and cosine metrics", {
   expect_equal(diag(cosine), rep(0, nrow(x)), tolerance = 1e-10)
 })
 
+test_that("CUDA self-distance diagonals are exactly zero", {
+  skip_if_not(cuda_available())
+  x <- matrix(seq(0.1, 3, length.out = 35), nrow = 7)
+
+  for (metric in c("euclidean", "cosine")) {
+    distance <- cuda_distance(x, metric = metric, device = "cuda")
+    expect_identical(diag(distance), numeric(nrow(x)))
+  }
+})
+
 test_that("distance supports a single query observation", {
   x <- matrix(c(1, 2, 3), nrow = 1)
   y <- matrix(c(1, 2, 4, 3, 2, 1), nrow = 2, byrow = TRUE)

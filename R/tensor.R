@@ -486,8 +486,18 @@ tensor_reshape <- function(x, shape) {
   }
 
   if (identical(x$backend, "torch")) {
+    # R arrays are column-major while torch tensors are row-major. Reverse the
+    # axes around the reshape so the public operation follows base R's value
+    # order without transferring the tensor back to the CPU.
+    source_axes <- rev(seq_along(x$shape))
+    target_axes <- rev(seq_along(shape))
+    storage <- x$storage$
+      permute(source_axes)$
+      contiguous()$
+      reshape(rev(shape))$
+      permute(target_axes)
     return(.new_cudatensor(
-      x$storage$reshape(shape),
+      storage,
       x$device,
       x$backend,
       x$dtype,
@@ -651,7 +661,7 @@ tensor_matmul <- function(x, y) {
       }
     } else {
       storage <- source_storage[[torch_method]](
-        dim = dim - 1L,
+        dim = dim,
         keepdim = keepdim
       )
     }
