@@ -28,6 +28,32 @@ test_that("diagnostics extend rather than replace legacy fields", {
   expect_named(diagnostics$backend_diagnostics, c("torch", "native"))
 })
 
+test_that("native probe failures do not change the legacy detection field", {
+  testthat::local_mocked_bindings(
+    .backend_diagnostics = function(name) {
+      if (identical(name, "torch")) {
+        return(list(
+          installed = FALSE, available = FALSE, device_count = 0L,
+          version = NA_character_, reason = "torch_not_installed",
+          detection_error = NULL
+        ))
+      }
+      list(
+        installed = TRUE, available = FALSE, device_count = 0L,
+        version = NA_character_, reason = "backend_error",
+        detection_error = "injected native probe failure"
+      )
+    }
+  )
+
+  diagnostics <- cuda_diagnostics()
+  expect_null(diagnostics$detection_error)
+  expect_identical(
+    diagnostics$backend_diagnostics$native$detection_error,
+    "injected native probe failure"
+  )
+})
+
 test_that("CPU tensor and algorithm adapters match their R references", {
   x <- matrix(seq_len(6), 2, 3)
   y <- matrix(seq_len(6), 3, 2)

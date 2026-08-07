@@ -117,10 +117,11 @@ cuda_diagnostics <- function() {
   }
   detection_error <- if (available) {
     selected_details$detection_error
-  } else if (!is.null(torch$detection_error)) {
-    torch$detection_error
   } else {
-    native$detection_error
+    # Keep the legacy top-level field tied to the torch compatibility probe
+    # for the full 0.2 transition cycle. Native failures remain available in
+    # backend_diagnostics$native$detection_error.
+    torch$detection_error
   }
   reason <- if (available) "cuda_available" else torch$reason
   available_backends <- c(
