@@ -137,25 +137,6 @@
   )
 }
 
-.sparse_torch <- function(i, j, values, shape) {
-  indices <- torch::torch_tensor(
-    rbind(i, j),
-    dtype = torch::torch_int64(),
-    device = "cuda"
-  )
-  torch_values <- torch::torch_tensor(
-    values,
-    dtype = torch::torch_float64(),
-    device = "cuda"
-  )
-  torch::torch_sparse_coo_tensor(
-    indices = indices,
-    values = torch_values,
-    size = shape,
-    device = "cuda"
-  )$coalesce()
-}
-
 #' Create a GPU-aware sparse matrix
 #'
 #' @param x A numeric matrix, a sparse matrix from the `Matrix` package, or a
@@ -249,12 +230,19 @@ cuda_sparse <- function(x, format = c("csr", "coo"),
   row_ptr <- c(0L, cumsum(tabulate(i, nbins = shape[[1]])))
   col_index <- j - 1L
 
-  storage <- if (device == "cuda") {
-    .sparse_torch(i, j, values, shape)
+  backend_id <- if (is.null(selection$backend)) {
+    if (identical(device, "cuda")) "torch" else "base"
   } else {
-    NULL
+    selection$backend
   }
-  backend <- if (device == "cuda") "torch-coo" else "Matrix"
+  storage <- .backend_call(
+    backend_id, "sparse_from_coo", i, j, values, shape
+  )
+  backend <- if (device == "cuda") {
+    if (identical(backend_id, "torch")) "torch-coo" else backend_id
+  } else {
+    "Matrix"
+  }
 
   result <- structure(
     list(
@@ -268,6 +256,7 @@ cuda_sparse <- function(x, format = c("csr", "coo"),
       format = format,
       device = device,
       backend = backend,
+      backend_id = backend_id,
       storage = storage
     ),
     class = "cudasparse"
@@ -403,17 +392,24 @@ sparse_matmul_dense <- function(x, y) {
   )
   result_dimnames <- .sparse_product_dimnames(x, y_dimnames)
 
-  if (x$device == "cuda") {
-    dense_gpu <- torch::torch_tensor(
-      y_cpu,
-      dtype = torch::torch_float64(),
-      device = "cuda"
-    )
-    product <- x$storage$matmul(dense_gpu)
-    result <- as.array(product$to(device = "cpu"))
+  backend_id <- if (!is.null(x$backend_id)) {
+    x$backend_id
+  } else if (identical(x$backend, "torch-coo")) {
+    "torch"
   } else {
-    result <- as.matrix(.triplet_matrix(x) %*% y_cpu)
+    "base"
   }
+  result <- .backend_call(
+    backend_id,
+    "sparse_matmul_dense",
+    x$storage,
+    x$i,
+    x$j,
+    x$values,
+    x$shape,
+    y_cpu
+  )
+  result <- as.matrix(result)
   dim(result) <- c(x$shape[[1]], y_shape[[2]])
   dimnames(result) <- result_dimnames
   output <- cuda_tensor(

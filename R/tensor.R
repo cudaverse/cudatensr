@@ -1,7 +1,7 @@
 #' Detect a usable CUDA backend
 #'
-#' Detection requires the optional `torch` package and a CUDA-enabled libtorch
-#' installation.
+#' Detection uses either the optional lightweight `cudaverseCUDA` extension or
+#' a CUDA-enabled installation of the optional `torch` package.
 #'
 #' @return A single logical value.
 #' @export
@@ -330,18 +330,14 @@ cuda_available <- function() {
   if (identical(dtype, "integer")) {
     .validate_integer_values(to_cpu(x))
   }
-  if (identical(x$backend, "torch")) {
-    storage <- x$storage$to(dtype = .torch_dtype(dtype))
-    return(.new_cudatensor(
-      storage, x$device, x$backend, dtype, x$shape,
-      dimnames = .tensor_dimnames(x),
-      compute_stages = list(
-        cast = .tensor_stage(x$device, x$backend)
-      )
-    ))
-  }
-  result <- cuda_tensor(to_cpu(x), device = "cpu", dtype = dtype)
-  .tensor_result_stage(result, "cast")
+  storage <- .backend_call(x$backend, "cast", x$storage, dtype)
+  .new_cudatensor(
+    storage, x$device, x$backend, dtype, x$shape,
+    dimnames = .tensor_dimnames(x),
+    compute_stages = list(
+      cast = .tensor_stage(x$device, x$backend)
+    )
+  )
 }
 
 #' Create a GPU-aware tensor
@@ -401,37 +397,26 @@ cuda_tensor <- function(x, device = c("auto", "cuda", "cpu"),
   }
   shape <- dim(x)
   tensor_dimnames <- .validate_tensor_dimnames(dimnames(x), shape)
+  backend <- if (is.null(selection$backend)) {
+    if (identical(device, "cuda")) "torch" else "base"
+  } else {
+    selection$backend
+  }
   materialization <- list(
     tensor_materialization = cuda_stage(
       requested_device = selection$requested_device,
       device = selection$device,
-      backend = if (identical(device, "cuda")) "torch" else "base",
+      backend = backend,
       selection_reason = selection$selection_reason,
       fallback = selection$fallback,
       output_device = selection$device
     )
   )
-  if (device == "cuda") {
-    storage <- torch::torch_tensor(
-      x,
-      dtype = .torch_dtype(dtype),
-      device = "cuda"
-    )
-    return(.new_cudatensor(
-      storage, "cuda", "torch", dtype, shape,
-      dimnames = tensor_dimnames,
-      compute_stages = materialization
-    ))
-  }
-
-  storage <- switch(
-    dtype,
-    integer = array(as.integer(x), dim = shape, dimnames = tensor_dimnames),
-    float32 = array(as.numeric(x), dim = shape, dimnames = tensor_dimnames),
-    float64 = array(as.numeric(x), dim = shape, dimnames = tensor_dimnames)
+  storage <- .backend_call(
+    backend, "from_host", x, dtype, shape, tensor_dimnames
   )
   .new_cudatensor(
-    storage, "cpu", "base", dtype, shape,
+    storage, device, backend, dtype, shape,
     dimnames = tensor_dimnames,
     compute_stages = materialization
   )
@@ -485,34 +470,19 @@ tensor_reshape <- function(x, shape) {
          call. = FALSE)
   }
 
-  if (identical(x$backend, "torch")) {
-    # R arrays are column-major while torch tensors are row-major. Reverse the
-    # axes around the reshape so the public operation follows base R's value
-    # order without transferring the tensor back to the CPU.
-    source_axes <- rev(seq_along(x$shape))
-    target_axes <- rev(seq_along(shape))
-    storage <- x$storage$
-      permute(source_axes)$
-      contiguous()$
-      reshape(rev(shape))$
-      permute(target_axes)
-    return(.new_cudatensor(
-      storage,
-      x$device,
-      x$backend,
-      x$dtype,
-      shape,
-      compute_stages = list(
-        reshape = .tensor_stage(x$device, x$backend)
-      )
-    ))
-  }
-  result <- cuda_tensor(
-    array(to_cpu(x), dim = shape),
-    device = "cpu",
-    dtype = x$dtype
+  storage <- .backend_call(
+    x$backend, "reshape", x$storage, x$shape, shape
   )
-  .tensor_result_stage(result, "reshape")
+  .new_cudatensor(
+    storage,
+    x$device,
+    x$backend,
+    x$dtype,
+    shape,
+    compute_stages = list(
+      reshape = .tensor_stage(x$device, x$backend)
+    )
+  )
 }
 
 .check_tensor <- function(x, argument = "x") {
@@ -555,11 +525,7 @@ to_device <- function(x, device = c("cpu", "cuda")) {
 #' to_cpu(cuda_tensor(matrix(1:4, 2), device = "cpu"))
 to_cpu <- function(x) {
   .check_tensor(x)
-  if (x$backend == "base") {
-    result <- x$storage
-  } else {
-    result <- as.array(x$storage$to(device = "cpu"))
-  }
+  result <- .backend_call(x$backend, "to_host", x$storage)
   dim(result) <- x$shape
   dimnames(result) <- .tensor_dimnames(x)
   result
@@ -603,30 +569,37 @@ tensor_matmul <- function(x, y) {
   if (transfer_needed) {
     y <- to_device(y, x$device)
   }
+  if (!identical(x$backend, y$backend)) {
+    y_storage <- .backend_call(
+      x$backend, "from_host", to_cpu(y), y$dtype, y$shape,
+      .tensor_dimnames(y)
+    )
+    y <- .new_cudatensor(
+      y_storage, x$device, x$backend, y$dtype, y$shape,
+      dimnames = .tensor_dimnames(y),
+      compute_stages = list(
+        backend_transfer = .tensor_stage(
+          x$device, x$backend,
+          requested_device = x$device,
+          reason = "backend_transfer"
+        )
+      )
+    )
+  }
   result_dtype <- .promote_tensor_dtype(x$dtype, y$dtype, "matmul")
   x <- .cast_tensor(x, result_dtype)
   y <- .cast_tensor(y, result_dtype)
   result_dimnames <- .matmul_tensor_dimnames(x, y)
 
-  if (x$backend == "torch") {
-    storage <- x$storage$matmul(y$storage)
-    return(.new_cudatensor(
-      storage, x$device, x$backend, result_dtype,
-      c(x$shape[[1]], y$shape[[2]]),
-      dimnames = result_dimnames,
-      compute_stages = list(
-        matrix_multiply = .tensor_stage(x$device, x$backend)
-      )
-    ))
-  }
-  result <- to_cpu(x) %*% to_cpu(y)
-  dimnames(result) <- result_dimnames
-  output <- cuda_tensor(
-    result,
-    device = "cpu",
-    dtype = result_dtype
+  storage <- .backend_call(x$backend, "matmul", x$storage, y$storage)
+  .new_cudatensor(
+    storage, x$device, x$backend, result_dtype,
+    c(x$shape[[1]], y$shape[[2]]),
+    dimnames = result_dimnames,
+    compute_stages = list(
+      matrix_multiply = .tensor_stage(x$device, x$backend)
+    )
   )
-  .tensor_result_stage(output, "matrix_multiply")
 }
 
 .tensor_reduce <- function(x, dim, keepdim, fun, torch_method,
@@ -648,66 +621,22 @@ tensor_matmul <- function(x, y) {
   }
   result_dimnames <- .reduced_tensor_dimnames(x, dim, keepdim)
 
-  if (x$backend == "torch") {
-    source_storage <- if (!identical(result_dtype, x$dtype)) {
-      x$storage$to(dtype = .torch_dtype(result_dtype))
-    } else {
-      x$storage
-    }
-    if (is.null(dim)) {
-      storage <- source_storage[[torch_method]]()
-      if (isTRUE(keepdim)) {
-        storage <- storage$reshape(rep(1L, length(x$shape)))
-      }
-    } else {
-      storage <- source_storage[[torch_method]](
-        dim = dim,
-        keepdim = keepdim
-      )
-    }
-    shape <- as.integer(storage$shape)
-    if (length(shape) == 0L) {
-      shape <- 1L
-    }
-    return(.new_cudatensor(
-      storage, x$device, x$backend, result_dtype, shape,
-      dimnames = result_dimnames,
-      compute_stages = structure(
-        list(.tensor_stage(x$device, x$backend)),
-        names = torch_method
-      )
-    ))
-  }
-
-  values <- to_cpu(x)
-  if (is.null(dim) || length(dim) == length(x$shape)) {
-    reduced <- fun(values)
-    if (isTRUE(keepdim)) {
-      reduced <- array(reduced, dim = rep(1L, length(x$shape)))
-    } else {
-      reduced <- array(reduced, dim = 1L)
-    }
+  source_storage <- if (!identical(result_dtype, x$dtype)) {
+    .backend_call(x$backend, "cast", x$storage, result_dtype)
   } else {
-    margin <- setdiff(seq_along(x$shape), dim)
-    reduced <- apply(values, margin, fun)
-    if (isTRUE(keepdim)) {
-      kept_shape <- x$shape
-      kept_shape[dim] <- 1L
-      reduced <- array(reduced, dim = kept_shape)
-    }
+    x$storage
   }
-  dim(reduced) <- if (is.null(dim) || length(dim) == length(x$shape)) {
-    if (isTRUE(keepdim)) rep(1L, length(x$shape)) else 1L
-  } else if (isTRUE(keepdim)) {
-    kept_shape <- x$shape
-    kept_shape[dim] <- 1L
-    kept_shape
-  } else {
-    x$shape[setdiff(seq_along(x$shape), dim)]
-  }
-  dimnames(reduced) <- result_dimnames
-  output <- cuda_tensor(reduced, device = "cpu", dtype = result_dtype)
-  .tensor_result_stage(output, torch_method)
+  result <- .backend_call(
+    x$backend, "reduce", source_storage, dim, keepdim, torch_method
+  )
+  .new_cudatensor(
+    result$storage, x$device, x$backend, result_dtype, result$shape,
+    dimnames = result_dimnames,
+    compute_stages = structure(
+      list(.tensor_stage(x$device, x$backend)),
+      names = torch_method
+    )
+  )
 }
 
 #' Tensor reductions
@@ -770,29 +699,16 @@ tensor_broadcast_to <- function(x, shape) {
   }
   result_dimnames <- .aligned_tensor_dimnames(x, shape)
 
-  if (x$backend == "torch") {
-    storage <- x$storage$reshape(padded)$expand(shape)
-    return(.new_cudatensor(
-      storage, x$device, x$backend, x$dtype, shape,
-      dimnames = result_dimnames,
-      compute_stages = list(
-        broadcast = .tensor_stage(x$device, x$backend)
-      )
-    ))
-  }
-
-  coordinates <- arrayInd(seq_len(prod(shape)), .dim = shape)
-  source_coordinates <- coordinates
-  singleton <- padded == 1L
-  source_coordinates[, singleton] <- 1L
-  strides <- cumprod(c(1L, utils::head(padded, -1L)))
-  source_index <- 1L + rowSums(
-    sweep(source_coordinates - 1L, 2L, strides, `*`)
+  storage <- .backend_call(
+    x$backend, "broadcast", x$storage, x$shape, shape
   )
-  result <- array(as.vector(to_cpu(x))[source_index], dim = shape)
-  dimnames(result) <- result_dimnames
-  output <- cuda_tensor(result, device = "cpu", dtype = x$dtype)
-  .tensor_result_stage(output, "broadcast")
+  .new_cudatensor(
+    storage, x$device, x$backend, x$dtype, shape,
+    dimnames = result_dimnames,
+    compute_stages = list(
+      broadcast = .tensor_stage(x$device, x$backend)
+    )
+  )
 }
 
 .broadcast_shape <- function(x, y) {
@@ -842,35 +758,26 @@ tensor_broadcast_to <- function(x, shape) {
   }
   result_dimnames <- .merge_tensor_dimnames(e1, e2)
 
-  if (identical(e1$backend, "torch")) {
-    storage <- switch(
-      operator,
-      "+" = e1$storage + e2$storage,
-      "-" = e1$storage - e2$storage,
-      "*" = e1$storage * e2$storage,
-      "/" = e1$storage / e2$storage,
-      "^" = e1$storage^e2$storage
+  if (!identical(e1$backend, e2$backend)) {
+    e2_storage <- .backend_call(
+      e1$backend, "from_host", to_cpu(e2), e2$dtype, e2$shape,
+      .tensor_dimnames(e2)
     )
-    return(.new_cudatensor(
-      storage, e1$device, e1$backend, dtype, shape,
-      dimnames = result_dimnames,
-      compute_stages = list(
-        arithmetic = .tensor_stage(e1$device, e1$backend)
-      )
-    ))
+    e2 <- .new_cudatensor(
+      e2_storage, e1$device, e1$backend, e2$dtype, e2$shape,
+      dimnames = .tensor_dimnames(e2)
+    )
   }
-
-  values <- switch(
-    operator,
-    "+" = to_cpu(e1) + to_cpu(e2),
-    "-" = to_cpu(e1) - to_cpu(e2),
-    "*" = to_cpu(e1) * to_cpu(e2),
-    "/" = to_cpu(e1) / to_cpu(e2),
-    "^" = to_cpu(e1)^to_cpu(e2)
+  storage <- .backend_call(
+    e1$backend, "binary", e1$storage, e2$storage, operator
   )
-  dimnames(values) <- result_dimnames
-  output <- cuda_tensor(values, device = "cpu", dtype = dtype)
-  .tensor_result_stage(output, "arithmetic")
+  .new_cudatensor(
+    storage, e1$device, e1$backend, dtype, shape,
+    dimnames = result_dimnames,
+    compute_stages = list(
+      arithmetic = .tensor_stage(e1$device, e1$backend)
+    )
+  )
 }
 
 #' Arithmetic operators for GPU-aware tensors
@@ -961,6 +868,17 @@ NULL
   as.list(substitute(list(...)))[-1L]
 }
 
+.host_tensor_metadata <- function(x) {
+  shape <- dim(x)
+  labels <- dimnames(x)
+  if (is.null(shape)) {
+    shape <- length(x)
+    value_names <- names(x)
+    labels <- if (is.null(value_names)) NULL else list(value_names)
+  }
+  list(shape = as.integer(shape), dimnames = labels)
+}
+
 .tensor_eval_index <- function(operator, values, subscripts, caller,
                                drop = NULL, replacement = NULL) {
   arguments <- c(list(as.name(operator), quote(.tensor_values)), subscripts)
@@ -994,7 +912,15 @@ NULL
     stop("Subsetting produced an empty tensor, which is not supported.",
          call. = FALSE)
   }
-  output <- cuda_tensor(result, device = x$device, dtype = x$dtype)
+  metadata <- .host_tensor_metadata(result)
+  output_storage <- .backend_call(
+    x$backend, "from_host", result, x$dtype,
+    metadata$shape, metadata$dimnames
+  )
+  output <- .new_cudatensor(
+    output_storage, x$device, x$backend, x$dtype, metadata$shape,
+    dimnames = metadata$dimnames
+  )
   if (identical(x$device, "cuda")) {
     return(.with_tensor_stages(
       output,
@@ -1008,7 +934,7 @@ NULL
         subset = .tensor_stage("cpu", "base"),
         upload = .tensor_stage(
           "cuda",
-          "torch",
+          x$backend,
           output_device = "cuda",
           requested_device = "cuda",
           reason = "output_transfer"
@@ -1039,7 +965,15 @@ NULL
     parent.frame(),
     replacement = value
   )
-  output <- cuda_tensor(result, device = x$device, dtype = x$dtype)
+  metadata <- .host_tensor_metadata(result)
+  output_storage <- .backend_call(
+    x$backend, "from_host", result, x$dtype,
+    metadata$shape, metadata$dimnames
+  )
+  output <- .new_cudatensor(
+    output_storage, x$device, x$backend, x$dtype, metadata$shape,
+    dimnames = metadata$dimnames
+  )
   if (identical(x$device, "cuda")) {
     return(.with_tensor_stages(
       output,
@@ -1053,7 +987,7 @@ NULL
         replacement = .tensor_stage("cpu", "base"),
         upload = .tensor_stage(
           "cuda",
-          "torch",
+          x$backend,
           output_device = "cuda",
           requested_device = "cuda",
           reason = "output_transfer"
@@ -1122,23 +1056,18 @@ t.cudatensor <- function(x) {
   } else {
     rev(tensor_dimnames)
   }
-  if (identical(x$backend, "torch")) {
-    return(.new_cudatensor(
-      x$storage$t(),
-      x$device,
-      x$backend,
-      x$dtype,
-      shape,
-      dimnames = result_dimnames,
-      compute_stages = list(
-        transpose = .tensor_stage(x$device, x$backend)
-      )
-    ))
-  }
-  result <- t(to_cpu(x))
-  dimnames(result) <- result_dimnames
-  output <- cuda_tensor(result, device = "cpu", dtype = x$dtype)
-  .tensor_result_stage(output, "transpose")
+  storage <- .backend_call(x$backend, "transpose", x$storage)
+  .new_cudatensor(
+    storage,
+    x$device,
+    x$backend,
+    x$dtype,
+    shape,
+    dimnames = result_dimnames,
+    compute_stages = list(
+      transpose = .tensor_stage(x$device, x$backend)
+    )
+  )
 }
 
 #' @export

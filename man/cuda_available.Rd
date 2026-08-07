@@ -10,8 +10,8 @@ cuda_available()
 A single logical value.
 }
 \description{
-Detection requires the optional \code{torch} package and a CUDA-enabled libtorch
-installation.
+Detection uses either the optional lightweight \code{cudaverseCUDA} extension
+or a CUDA-enabled installation of the optional \code{torch} package.
 }
 \examples{
 cuda_available()
