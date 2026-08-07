@@ -1,15 +1,15 @@
 Package: cudaverse
 Title: GPU-Aware Numerical Computing for R
-Version: 0.1.0
+Version: 0.2.0.9000
 Authors@R:
     person("Yaoxiang", "Li", email = "liyaoxiang@outlook.com",
            role = c("aut", "cre"))
 Description: Provides one coherent interface for experimental GPU-aware
     numerical computing in R. Includes dense tensors, sparse matrices,
     decompositions, distances, nearest neighbours, clustering, graph
-    workflows, and embeddings. Uses an optional CUDA-enabled 'torch'
-    installation for GPU execution and portable R backends for development,
-    testing, and reproducible fallback behavior.
+    workflows, and embeddings. Uses optional CUDA backend extensions for GPU
+    execution and portable R backends for development, testing, and
+    reproducible fallback behavior.
 License: MIT + file LICENSE
 URL: https://cudaverse.github.io/cudaverse/,
     https://github.com/cudaverse/cudaverse

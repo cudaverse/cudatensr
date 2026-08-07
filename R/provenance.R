@@ -69,73 +69,76 @@
 #' Inspecting the runtime is non-destructive and never installs or downloads
 #' torch. The returned `reason` is suitable for logs and provenance.
 #'
-#' @return A named list containing `torch_installed`, `torch_version`,
-#'   `cuda_available`, `cuda_device_count`, `reason`, and `detection_error`.
+#' @return A named list containing the legacy fields `torch_installed`,
+#'   `torch_version`, `cuda_available`, `cuda_device_count`, `reason`, and
+#'   `detection_error`, plus `available_backends`, `selected_backend`, and
+#'   per-backend diagnostic details. The legacy fields are retained throughout
+#'   the 0.2 release cycle.
 #' @export
 #' @examples
 #' cuda_diagnostics()
 cuda_diagnostics <- function() {
-  torch_installed <- .cuda_torch_installed()
-  torch_version <- if (torch_installed) {
-    .cuda_torch_version()
+  .backend_register_builtins()
+  .backend_discover_native()
+  torch <- .backend_diagnostics("torch")
+  registered <- ls(.cudaverse_backends, all.names = TRUE)
+  native <- if ("native" %in% registered) {
+    .backend_diagnostics("native")
   } else {
-    NA_character_
-  }
-  detection_error <- NULL
-  available <- if (torch_installed) {
-    tryCatch(
-      isTRUE(.cuda_torch_is_available()),
-      error = function(error) {
-        detection_error <<- conditionMessage(error)
-        FALSE
-      }
+    list(
+      installed = FALSE,
+      available = FALSE,
+      device_count = 0L,
+      version = NA_character_,
+      reason = if (is.null(.cudaverse_backend_discovery$error)) {
+        "extension_not_installed"
+      } else {
+        "backend_error"
+      },
+      detection_error = .cudaverse_backend_discovery$error
     )
+  }
+  backend_diagnostics <- list(torch = torch, native = native)
+  selected_backend <- .backend_select_cuda(list(
+    backend_diagnostics = backend_diagnostics
+  ))
+  available <- !is.null(selected_backend)
+  selected_details <- if (available) {
+    backend_diagnostics[[selected_backend]]
   } else {
-    FALSE
+    torch
   }
   device_count <- if (available) {
-    raw_device_count <- tryCatch(
-      .cuda_torch_device_count(),
-      error = function(error) {
-        if (is.null(detection_error)) {
-          detection_error <<- conditionMessage(error)
-        }
-        NA_real_
-      }
-    )
-    if (!.valid_cuda_device_count(raw_device_count)) {
-      if (is.null(detection_error)) {
-        detection_error <- paste0(
-          "`torch::cuda_device_count()` returned an invalid value; ",
-          "expected one non-negative whole number."
-        )
-      }
-      available <- FALSE
-      NA_integer_
-    } else {
-      as.integer(raw_device_count)
-    }
+    as.integer(selected_details$device_count)
+  } else if (identical(torch$reason, "backend_error")) {
+    NA_integer_
   } else {
     0L
   }
-  if (length(device_count) == 1L &&
-      !is.na(device_count) &&
-      device_count < 1L) {
-    available <- FALSE
+  detection_error <- if (available) {
+    selected_details$detection_error
+  } else if (!is.null(torch$detection_error)) {
+    torch$detection_error
+  } else {
+    native$detection_error
   }
+  reason <- if (available) "cuda_available" else torch$reason
+  available_backends <- c(
+    "base",
+    names(Filter(function(x) isTRUE(x$available), backend_diagnostics))
+  )
 
   structure(
     list(
-      torch_installed = torch_installed,
-      torch_version = torch_version,
+      torch_installed = isTRUE(torch$installed),
+      torch_version = torch$version,
       cuda_available = available,
       cuda_device_count = device_count,
-      reason = .cuda_diagnostic_reason(
-        torch_installed,
-        available,
-        detection_error
-      ),
-      detection_error = detection_error
+      reason = reason,
+      detection_error = detection_error,
+      available_backends = available_backends,
+      selected_backend = if (available) selected_backend else "base",
+      backend_diagnostics = backend_diagnostics
     ),
     class = "cuda_diagnostics"
   )
@@ -161,6 +164,7 @@ cuda_select_device <- function(device = c("auto", "cuda", "cpu")) {
       list(
         requested_device = "cpu",
         device = "cpu",
+        backend = "base",
         selection_reason = "explicit_cpu",
         fallback = FALSE,
         diagnostics = NULL
@@ -175,6 +179,11 @@ cuda_select_device <- function(device = c("auto", "cuda", "cpu")) {
       list(
         requested_device = requested_device,
         device = "cuda",
+        backend = if (is.null(diagnostics$selected_backend)) {
+          "torch"
+        } else {
+          diagnostics$selected_backend
+        },
         selection_reason = if (identical(requested_device, "cuda")) {
           "explicit_cuda"
         } else {
@@ -190,7 +199,8 @@ cuda_select_device <- function(device = c("auto", "cuda", "cpu")) {
   if (identical(requested_device, "cuda")) {
     message <- paste0(
       "CUDA is unavailable (", diagnostics$reason, "). ",
-      "Install a CUDA-enabled `torch` backend or use `device = \"cpu\"`."
+      "Install `cudaverseCUDA` or a CUDA-enabled `torch` backend, or use ",
+      "`device = \"cpu\"`."
     )
     condition <- structure(
       list(
@@ -211,6 +221,7 @@ cuda_select_device <- function(device = c("auto", "cuda", "cpu")) {
     list(
       requested_device = "auto",
       device = "cpu",
+      backend = "base",
       selection_reason = diagnostics$reason,
       fallback = TRUE,
       diagnostics = diagnostics
@@ -499,10 +510,12 @@ print.cuda_provenance <- function(x, ...) {
 print.cuda_diagnostics <- function(x, ...) {
   cat(sprintf(
     paste0(
-      "<cuda_diagnostics available=%s devices=%s torch=%s reason=%s>\n"
+      "<cuda_diagnostics available=%s devices=%s selected=%s ",
+      "torch=%s reason=%s>\n"
     ),
     x$cuda_available,
     x$cuda_device_count,
+    if (is.null(x$selected_backend)) "legacy" else x$selected_backend,
     if (is.na(x$torch_version)) "not installed" else x$torch_version,
     x$reason
   ))
@@ -512,9 +525,17 @@ print.cuda_diagnostics <- function(x, ...) {
 #' @export
 print.cuda_device_selection <- function(x, ...) {
   cat(sprintf(
-    "<cuda_device_selection requested=%s selected=%s reason=%s fallback=%s>\n",
+    paste0(
+      "<cuda_device_selection requested=%s selected=%s backend=%s ",
+      "reason=%s fallback=%s>\n"
+    ),
     x$requested_device,
     x$device,
+    if (is.null(x$backend)) {
+      if (identical(x$device, "cuda")) "torch" else "base"
+    } else {
+      x$backend
+    },
     x$selection_reason,
     x$fallback
   ))
