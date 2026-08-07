@@ -12,15 +12,19 @@ The public API is organized by topic rather than by package:
 - weighted kNN graphs, Louvain, and Leiden clustering;
 - UMAP, t-SNE, and diffusion-map-style embeddings.
 
-CUDA is optional. When a supported CUDA-enabled `torch` installation is not
-available, functions use their documented portable backend and record what
-actually ran.
+CUDA is optional. The development line can discover the lightweight
+[`cudaverseCUDA`](https://github.com/cudaverse/cudaverseCUDA) extension or use
+a supported CUDA-enabled `torch` installation. When neither is available,
+functions use their documented portable backend and record what actually ran.
 
 ## Lightweight native CUDA direction
 
 Version 0.1.0 uses `torch` only as an optional CUDA backend; it is not a hard
-package dependency. The next backend milestone is a lightweight native CUDA
-implementation behind the same public R API. Its intended benefits are:
+package dependency. Development version 0.2 now has a backend registry and a
+separate `cudaverseCUDA` prototype behind the same public R API. The first
+prototype implements driver detection, shared-ownership device allocations,
+host/device transfer, synchronization, and double-precision cuBLAS matrix
+multiplication. Its intended benefits are:
 
 - avoid requiring the full LibTorch installation, which occupied 6.86 GB in
   our Windows RTX 2000 development environment;
@@ -32,9 +36,11 @@ implementation behind the same public R API. Its intended benefits are:
   provenance directly; and
 - allow future backends to be added without changing user code.
 
-These are roadmap goals, not performance or installation-size claims about
-the current release. They will become release claims only after reproducible
-parity, disk-footprint, and performance benchmarks pass. See the
+The complete benefits remain roadmap goals, not claims about release 0.1.0.
+Native CUDA is not yet the automatic default, and PCA, distance, and top-k are
+not yet native. The stage-one RTX 2000 evidence and redistribution inventory
+are published with the extension source; broader claims wait for the full
+pipeline gates. See the
 [native CUDA roadmap](.github/NATIVE-CUDA-ROADMAP.md) for the architecture and
 acceptance criteria.
 
@@ -45,6 +51,19 @@ During development, install from GitHub:
 ```r
 # install.packages("pak")
 pak::pak("cudaverse/cudaverse")
+```
+
+Native CUDA development uses the optional extension. It is discovered lazily,
+so installing `cudaverse` never downloads a CUDA runtime or requires a CUDA
+toolkit:
+
+```r
+pak::pak("cudaverse/cudaverse@develop/native-cuda")
+pak::pak("cudaverse/cudaverseCUDA")
+
+# During the prototype phase, request native before the compatibility backend.
+options(cudaverse.cuda_backends = c("native", "torch"))
+cuda_diagnostics()
 ```
 
 ## One workflow, one package

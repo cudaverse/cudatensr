@@ -31,7 +31,10 @@ Suggests:
     SingleCellExperiment,
     testthat (>= 3.0.0),
     torch,
-    uwot
+    uwot,
+    cudaverseCUDA
+Additional_repositories: https://cudaverse.github.io/cudaverseCUDA
+Remotes: cudaverse/cudaverseCUDA
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0
