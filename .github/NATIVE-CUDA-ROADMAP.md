@@ -38,8 +38,12 @@ runtime. The initial choices will be `native`, `torch`, and `cpu`, with `auto`
 selecting the best validated backend. During migration, torch remains an
 optional compatibility backend and the CPU path remains the portable fallback.
 
-The planned native implementation uses NVIDIA's focused numerical libraries
-where they are a good fit:
+The optional
+[`cudaverseCUDA`](https://github.com/cudaverse/cudaverseCUDA) extension now
+implements the first native prototype. The main package discovers it lazily;
+it remains installable and fully checkable without the extension or CUDA. The
+native implementation uses NVIDIA's focused numerical libraries where they
+are a good fit:
 
 - cuBLAS for dense matrix multiplication;
 - cuSPARSE for sparse operations;
@@ -49,10 +53,11 @@ where they are a good fit:
 
 ## Delivery stages
 
-1. Extract and test the internal backend contract without changing the public
-   API.
-2. Implement device diagnostics, allocation/finalization, transfer, arithmetic,
-   reductions, and matrix multiplication.
+1. **Complete:** extract and test the internal backend contract without
+   changing the public API.
+2. **Stage-one prototype complete:** device diagnostics,
+   allocation/finalization, transfer, synchronization, and cuBLAS matrix
+   multiplication. Arithmetic and reductions remain in the next stage.
 3. Implement pairwise distance and device-resident top-k selection, then move
    exact k-nearest-neighbour workflows onto the native path.
 4. Add sparse operations and decompositions.
@@ -77,3 +82,8 @@ evidence for:
 The benchmark report must distinguish resident GPU kernel timing from complete
 R workflow timing. It must also report CPU-only and hybrid stages so users can
 see where acceleration actually occurred.
+
+Stage-one evidence, including the RTX 2000 parity/lifecycle report, CycloneDX
+SBOM, and third-party license inventory, is versioned under `inst/reports/` in
+the `cudaverseCUDA` repository. Native remains opt-in until the later dense
+pipeline gates pass.
